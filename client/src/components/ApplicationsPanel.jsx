@@ -122,7 +122,7 @@ function ApplicationCard({ a, onChanged, openByDefault }) {
   )
 }
 
-export default function ApplicationsPanel({ company, onCompanyChanged }) {
+export default function ApplicationsPanel({ company, onCompanyChanged, reloadKey = 0 }) {
   const [items, setItems] = useState(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
@@ -134,7 +134,7 @@ export default function ApplicationsPanel({ company, onCompanyChanged }) {
   const load = useCallback(async () => {
     try { setItems((await api.applications(company._id)).items); setError('') } catch (e) { setError(e.message) }
   }, [company._id])
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, reloadKey])
 
   // After any change, reload the list and refresh the company's summary (status, dates, count) in the parent.
   const changed = useCallback(async () => { await load(); onCompanyChanged(await api.company(company._id)) }, [load, onCompanyChanged, company._id])

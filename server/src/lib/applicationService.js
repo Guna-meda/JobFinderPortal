@@ -102,6 +102,15 @@ export function createApplicationService({ Company = CompanyModel, Application =
     return app.toObject();
   }
 
+  // A typed entry in the history (e.g. an outreach email you marked as sent).
+  async function logActivity(id, type, summary) {
+    const app = await Application.findById(id);
+    if (!app) return null;
+    app.set('history', appendHistory(app.toObject().history || [], [{ type, summary: String(summary).slice(0, 590) }]));
+    await app.save();
+    return app.toObject();
+  }
+
   /**
    * Compatibility for the older company-level fields (appStatus, appliedDate, followUpDate): they now act on the
    * company's single application, create one if there is none, and refuse when there are several.
@@ -174,7 +183,7 @@ export function createApplicationService({ Company = CompanyModel, Application =
   }
 
   return {
-    recompute, create, update, remove, addNote, legacyApply, syncLegacy, migrateAll,
+    recompute, create, update, remove, addNote, logActivity, legacyApply, syncLegacy, migrateAll,
     list: (companyId) => Application.find({ company: companyId }).sort({ createdAt: -1 }).lean(),
     removeForCompany: (companyId) => Application.deleteMany({ company: companyId }),
   };

@@ -32,3 +32,6 @@ Dashboard definitions (counted over **applications**): *applied* = Applied + Rep
 
 ## Application (collection `applications`)
 `company` (ref), `role` ('' = general application), `roleKey` (normalised role), `jobUrl`, `jobUrlKey` (normalised), `status`, `appliedDate`, `lastContactDate`, `followUpDate`, `contactName`, `contactEmail`, `contactUrl`, `nextAction`, `notes`, `history` [{at, type: created/status/applied/followUp/contact/details/note/migrated, summary, from?, to?}], `createdAt`, `updatedAt`. Unique indexes: (company, roleKey) and (company, jobUrlKey) when a URL is present. Dates are stored as UTC midnight of the calendar date. Overdue = follow-up before today on an application that is not Rejected/Offer.
+
+## Draft (collection `drafts`)
+`company`, `application` (optional), `purpose` (internship_inquiry, role_application, recruiter_follow_up, job_listing_response), `role`, `subject`, `body`, `generatedBy` (template/ai/manual), `facts` [{key, label, value, basis: verified/record/you, source?}], `status` (draft/sent), `sentAt` (set only when you mark it sent), timestamps. At most 50 per company. Deleting a company deletes its drafts.

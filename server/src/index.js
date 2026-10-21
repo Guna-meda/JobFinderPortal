@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import Application from './models/Application.js';
 import { createResearchService } from './lib/researchService.js';
 import { createApplicationService } from './lib/applicationService.js';
+import { createOutreachService } from './lib/outreachService.js';
 
 const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/startup-finder';
 const port = process.env.PORT || 4000;
@@ -27,4 +28,7 @@ const research = createResearchService();
 const recovered = await research.recoverInterrupted();
 if (recovered) console.log(`Marked ${recovered} interrupted research run(s) as failed so they can be retried.`);
 
-createApp({ research, applications }).listen(port, () => console.log(`API listening on http://localhost:${port}`));
+const outreach = createOutreachService({ apps: applications });
+console.log(outreach.config().aiAvailable ? `Outreach drafts: AI enabled (${outreach.config().model}); templates are the fallback.` : 'Outreach drafts: template mode (set ANTHROPIC_API_KEY in server/.env to enable AI drafts).');
+
+createApp({ research, applications, outreach }).listen(port, () => console.log(`API listening on http://localhost:${port}`));

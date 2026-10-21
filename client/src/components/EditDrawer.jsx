@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { FUNDING_STATUSES, FUNDING_STAGES } from '../api'
+import { api, FUNDING_STATUSES, FUNDING_STAGES } from '../api'
 import ResearchPanel from './ResearchPanel'
 import ApplicationsPanel from './ApplicationsPanel'
+import OutreachPanel from './OutreachPanel'
 
 const input = 'w-full rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40'
 
@@ -28,6 +29,7 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
   // What the server last told us. Only fields that differ from this are saved, so values applied from
   // research (accepted findings) are never overwritten by an older copy sitting in the form.
   const [base, setBase] = useState(() => initial(c))
+  const [appsTick, setAppsTick] = useState(0)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ type: '', text: '' })
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
@@ -65,7 +67,9 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          <ApplicationsPanel company={c} onCompanyChanged={onCompany} />
+          <ApplicationsPanel company={c} onCompanyChanged={onCompany} reloadKey={appsTick} />
+
+          <OutreachPanel company={c} onApplicationChanged={async () => { setAppsTick((n) => n + 1); onCompany(await api.company(c._id)) }} />
 
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Company contact and notes</h3>

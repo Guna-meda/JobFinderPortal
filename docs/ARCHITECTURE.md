@@ -18,6 +18,11 @@ React + Vite + Tailwind  --/api proxy-->  Express  -->  MongoDB
 - `lib/applicationService.js`: persistence, duplicate checks, company summary, legacy compatibility, migration.
 - `routes/applications.js`: application routes and CSV export.
 - `scripts/migrate-applications.js`: optional manual migration.
+- `config/profile.js`: your background and the draft purposes (the only sender facts a draft may state).
+- `lib/outreach.js`: pure drafting logic (input validation, facts by origin, missing-context check, templates, AI prompt, output validation).
+- `lib/outreachAi.js`: Claude via the official SDK (structured output, low effort, safe error codes); `providerFromEnv` reads the server-side key.
+- `lib/outreachService.js`, `routes/outreach.js`, `models/Draft.js`: generate, save, edit, mark sent manually.
+- `lib/rateLimit.js`: small in-memory limiter (used for AI drafts).
 - `lib/csv.js`: URL, domain and funding normalisers.
 - `lib/filters.js`: query-string to Mongo filter (regex-escaped, all filters ANDed) and sort map.
 - `config/research.js`: limits, user-agent, role keywords (env `RESEARCH_ROLE_KEYWORDS`).
@@ -47,6 +52,11 @@ React + Vite + Tailwind  --/api proxy-->  Express  -->  MongoDB
 | POST | `/api/applications/:id/activity` `{note}` | add a manual history entry |
 | GET | `/api/applications?status&followUpDue&limit` | applications across companies (follow-ups due) |
 | GET | `/api/applications/export` | applications CSV |
+| GET | `/api/outreach/config` | `{aiAvailable, model, purposes}` (never a key) |
+| POST | `/api/outreach/generate` | write a draft (422 `missing` list; 429 for AI rate limit); never sends |
+| GET/POST | `/api/companies/:id/drafts` | list / save drafts |
+| PATCH/DELETE | `/api/drafts/:id` | edit (not once sent) / delete |
+| POST | `/api/drafts/:id/sent`, `/unsent` | record that YOU sent it (date, optional application update) |
 | GET | `/api/stats`, `/api/facets` | dashboard numbers (application based), filter options |
 
 ## Client (`client/src`)

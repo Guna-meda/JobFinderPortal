@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { STATUSES } from '../lib/csv.js';
 
-export const ACTIVITY_TYPES = ['created', 'status', 'applied', 'followUp', 'contact', 'details', 'note', 'migrated'];
+export const ACTIVITY_TYPES = ['created', 'status', 'applied', 'followUp', 'contact', 'details', 'note', 'outreach', 'migrated'];
 
 const activitySchema = new mongoose.Schema(
   {

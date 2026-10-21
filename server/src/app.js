@@ -16,6 +16,8 @@ import { createResearchService } from './lib/researchService.js';
 import { createApplicationService } from './lib/applicationService.js';
 import { TERMINAL } from './lib/applications.js';
 import { registerApplications } from './routes/applications.js';
+import { createOutreachService } from './lib/outreachService.js';
+import { registerOutreach } from './routes/outreach.js';
 import { registerImportExport } from './routes/importExport.js';
 import { registerResearch } from './routes/research.js';
 
@@ -62,7 +64,7 @@ export function cleanPatch(body = {}) {
   return patch;
 }
 
-export function createApp({ research = createResearchService(), applications: apps = createApplicationService() } = {}) {
+export function createApp({ research = createResearchService(), applications: apps = createApplicationService(), outreach = createOutreachService({ apps }) } = {}) {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
@@ -150,11 +152,13 @@ export function createApp({ research = createResearchService(), applications: ap
     if (!isId(req.params.id)) throw bad('Invalid id.');
     await Company.findByIdAndDelete(req.params.id);
     await apps.removeForCompany(req.params.id); // never leave orphaned applications behind
+    await outreach.removeForCompany(req.params.id);
     res.status(204).end();
   }));
 
   registerResearch(app, { wrap, service: research });
   registerApplications(app, { wrap, apps });
+  registerOutreach(app, { wrap, outreach });
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

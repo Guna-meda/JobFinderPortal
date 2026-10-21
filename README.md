@@ -37,6 +37,7 @@ Set it in `server/.env`:
 | Application tracking: one application per role, statuses, dates, follow-up due/overdue, contacts, notes, activity history, duplicate protection | Done (see "Application tracking") |
 | Edit/delete companies, CSV export (respects current filters) | Done |
 | Website research: evidence-backed findings (careers page, public email, role leads, funding statements) with per-finding sources; accept/edit/reject; single and batch; SSRF-hardened | Done, best-effort (see "Website research") |
+| Outreach drafts: template + optional AI, facts labelled by origin, validated output, manual "I sent this" | Done (see "Outreach drafts"); AI mode tested with a fake provider only |
 | Funding verification | Research can surface the company's own funding statement as an unverified lead; **independent verification is manual** (source URL + "verified" tick) |
 | Role discovery on JS-rendered or hiring-platform-only career pages | Not done; shows "not detected" |
 | Browser-tested UI | Compiled and served by Vite; not exercised in a real browser during the build |
@@ -74,6 +75,24 @@ Each company can have **several applications, one per role**, each with its own 
 **Nothing is required.** On every start the server runs an idempotent, non-destructive migration: any company that has company-level tracking data (status other than Not Applied, an applied date or a follow-up date) but no application records gets one general application carrying those values, contact name/email and a "migrated" history entry. It never invents dates, never deletes or rewrites existing data, and leaves company notes where they are. Companies with no tracking data are left alone. You can also run it by hand: `npm --prefix server run migrate:applications`. Running it twice does nothing the second time. If you roll back to an older version of the app, the company-level fields are still present and still hold the summary values.
 
 Import note: status/date columns in a CSV create a general application for new companies; for a company that already has applications they are ignored. Re-importing an export into an empty database recreates one general application per company from the summary columns (per-role detail is in the applications CSV, which can't be re-imported yet).
+
+## Outreach drafts
+Open a company, then **Outreach drafts → Write a draft**. Pick a purpose (internship inquiry, role application, recruiter follow-up, response to a job listing), optionally one of the company's applications (this fills in the role, applied date and contact), and generate a draft. You get an editable subject and body, **Copy subject** / **Copy body**, and **Save draft** (saved against the company and application). When you have sent it yourself, press **I sent this** to record the date, update the application's last-contact date and add an activity entry; it only records what you did.
+
+**The app never sends an email, contacts a recruiter, or submits an application.** There is no email-sending code or dependency (a test guards this). Copy the text into your own mail client.
+
+**What a draft may say.** Only your background (`server/src/config/profile.js`: software engineering student; internship at eGov Foundation on the DIGIT public-service platform; Remore with Node.js, Express, MongoDB, OpenAI, Twilio, MCP/tool calling and calendar integration; your interests) plus a short list of company *facts*, each labelled in the **Facts used** panel:
+- **verified on the company site**: a role that research found on the company's own website (with its source) and that you accepted;
+- **from your records**: company name, industry, role, job URL and applied date from your own data (not independently verified);
+- **typed by you**: the sentence you wrote for "I'm interested in … because …".
+
+Funding is never used, and your private notes are never quoted. Nothing about experience, numbers, users or achievements is added beyond your background. The panel labels the text as *Generated text: template* or *AI*, and you are expected to review it.
+
+**Missing information is asked for, not invented.** A role application or job-listing response needs a role and a reason for the company; a follow-up needs the role and the date you applied; an internship inquiry needs a reason or the company's industry. If something is missing the server answers 422 with exactly what to fill in. The signature shows `[Your name]` until you type your name (the browser remembers it locally).
+
+**Template vs AI.** Templates work with no setup. To enable AI drafts, put `ANTHROPIC_API_KEY=…` in `server/.env` and restart. The server calls Claude (`claude-opus-5-5` by default, override with `OUTREACH_AI_MODEL`) through the official `@anthropic-ai/sdk` with low effort and a JSON-only response. This sends the facts shown in the panel and your background to Anthropic, only when you press **Generate with AI**. The reply is then **validated**: any number, link, email address, funding claim, attachment mention or missing company name that isn't backed by the facts is rejected and the template is used instead (with the reason shown). If the key is missing/invalid, the service is down or busy, or the reply is malformed, you also get the template. AI drafts are limited to 10 per 10 minutes. The key stays in the server process: it is not in the frontend bundle, API responses or logs (errors are reduced to a short code before logging).
+
+Limitations: AI mode is covered by tests with a fake provider, **not by a live call** (no API key was available while building this). Server-side fallbacks for refusals are not enabled; a refusal simply yields the template. Draft text isn't checked for tone or grammar, and the number/link checks are heuristics, not a guarantee, so always read the draft before sending.
 
 ## Website research
 Open a company and press **Run research** (or tick several rows and press **Research selected**, max 25). Research runs in the background; the row and drawer show progress, and you can retry any failure later. **Nothing is written to the company until you accept a finding.**

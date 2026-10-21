@@ -10,6 +10,7 @@
     "migrate:applications": "node scripts/migrate-applications.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.0.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "csv-parse": "^7.0.3",
