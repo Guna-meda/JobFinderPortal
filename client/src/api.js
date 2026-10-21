@@ -1,0 +1,39 @@
+export const STATUSES = ['Not Applied', 'To Apply', 'Applied', 'Replied', 'Interview', 'Rejected', 'Offer'];
+export const FUNDING_STATUSES = ['unknown', 'bootstrapped', 'funded'];
+export const FUNDING_STAGES = ['unknown', 'pre-seed', 'seed', 'series-a', 'series-b', 'series-c+', 'other'];
+
+async function req(path, opts = {}) {
+  let res;
+  try {
+    res = await fetch(`/api${path}`, opts);
+  } catch {
+    throw new Error('Cannot reach the API. Is the server running on port 4000?');
+  }
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const qs = (params) => {
+  const p = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => v !== '' && v != null && p.set(k, v));
+  return p.toString();
+};
+
+export const api = {
+  list: (filters) => req(`/companies?${qs(filters)}`),
+  facets: () => req('/facets'),
+  stats: () => req('/stats'),
+  update: (id, patch) => req(`/companies/${id}`, json('PATCH', patch)),
+  create: (body) => req('/companies', json('POST', body)),
+  remove: (id) => req(`/companies/${id}`, { method: 'DELETE' }),
+  research: (id) => req(`/companies/${id}/research`, { method: 'POST' }),
+  importCsv: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return req('/import', { method: 'POST', body: fd });
+  },
+  exportUrl: (filters) => `/api/export?${qs(filters)}`,
+};
