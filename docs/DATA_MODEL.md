@@ -20,12 +20,15 @@ MongoDB collection `companies` (Mongoose model `Company`, timestamps on).
 | researchError | `{code, message, retryable}` | safe, user-facing |
 | researchStartedAt, researchProgress, researchNotFound, researchPages | | run bookkeeping; notFound lists `careers`/`email`/`roles` not detected |
 | researchedAt, researchLog | Date, [String] | log explains what was read and what was skipped |
-| appStatus | Not Applied, To Apply, Applied, Replied, Interview, Rejected, Offer | indexed |
-| appliedDate, followUpDate | Date | |
+| appStatus, appStatuses, applicationCount | summary | **maintained by the server** from the Application records: furthest-along status, every status present, number of applications |
+| appliedDate, followUpDate, lastContactDate | Date | summary: earliest applied date, earliest follow-up of open applications, latest contact |
 | notes | String | |
 | extra | Mixed | unmapped CSV columns |
 
-Dashboard definitions: *applied* = Applied + Replied + Interview + Rejected + Offer; *replies* = Replied + Interview + Offer; *researched* = a research run completed (researched, partial or not_found; failed and running don't count).
+Dashboard definitions (counted over **applications**): *applied* = Applied + Replied + Interview + Rejected + Offer; *replies* = Replied + Interview + Offer; *researched* = a research run completed (researched, partial or not_found; failed and running don't count).
 
 ## Finding (subdocument of `findings`)
 `kind` (careers/email/role/website/funding), `value` (URL, email, or the quoted funding sentence), `title` (roles), **`sourceUrl`** (the page it was seen on), **`observedAt`**, `basis` (official-link, official-page-mailto, official-page-text, keyword-match, company-statement, redirect), `confidence` (verified = seen directly on an official-site page; inferred = keyword/text lead; unverified = weak or company-claim only), `evidence`, `meta` (matched keywords; funding stage/amount/date as literally stated), `status` (pending/accepted/rejected), `decidedAt`, `seenInLatestRun`. Re-runs refresh `observedAt` and keep decisions; findings not seen again are flagged, never deleted. "Stale" means observed more than 90 days ago.
+
+## Application (collection `applications`)
+`company` (ref), `role` ('' = general application), `roleKey` (normalised role), `jobUrl`, `jobUrlKey` (normalised), `status`, `appliedDate`, `lastContactDate`, `followUpDate`, `contactName`, `contactEmail`, `contactUrl`, `nextAction`, `notes`, `history` [{at, type: created/status/applied/followUp/contact/details/note/migrated, summary, from?, to?}], `createdAt`, `updatedAt`. Unique indexes: (company, roleKey) and (company, jobUrlKey) when a URL is present. Dates are stored as UTC midnight of the calendar date. Overdue = follow-up before today on an application that is not Rejected/Offer.

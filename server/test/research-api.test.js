@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import Company from '../src/models/Company.js';
+import Application from '../src/models/Application.js';
 import { createResearchService } from '../src/lib/researchService.js';
 import { researchConfig } from '../src/config/research.js';
 import { startFixture, testFetcher, site, page } from './helpers/fixture.js';
@@ -26,6 +27,7 @@ before(async () => {
   try {
     await mongoose.connect(URI, { serverSelectionTimeoutMS: 3000 });
     up = true;
+    await Application.init();
   } catch {
     console.warn(`SKIPPING research API tests: cannot reach MongoDB at ${URI}`);
     return;
@@ -43,7 +45,7 @@ after(async () => {
 });
 beforeEach(async () => {
   if (!up) return;
-  await Company.deleteMany({});
+  await Promise.all([Company.deleteMany({}), Application.deleteMany({})]);
   routes = Object.assign(Object.fromEntries(Object.keys(routes).map((k) => [k, undefined])), baseRoutes());
   for (const k of Object.keys(routes)) if (routes[k] === undefined) delete routes[k];
   fx.hits.length = 0;

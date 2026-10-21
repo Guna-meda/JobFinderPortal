@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import Company from '../src/models/Company.js';
+import Application from '../src/models/Application.js';
 
 const URI = process.env.MONGO_TEST_URI || 'mongodb://127.0.0.1:27017/startup-finder-test';
 if (!/test/i.test(new URL(URI).pathname)) throw new Error('Refusing to run API tests against a non-test database');
@@ -16,6 +17,7 @@ before(async () => {
   try {
     await mongoose.connect(URI, { serverSelectionTimeoutMS: 3000 });
     up = true;
+    await Application.init();
     app = createApp();
   } catch {
     console.warn(`SKIPPING API tests: cannot reach MongoDB at ${URI}`);
@@ -25,7 +27,7 @@ after(async () => {
   if (up) await mongoose.disconnect();
 });
 beforeEach(async () => {
-  if (up) await Company.deleteMany({});
+  if (up) await Promise.all([Company.deleteMany({}), Application.deleteMany({})]);
 });
 
 const t = (name, fn) => test(name, async (ctx) => (up ? fn(ctx) : ctx.skip('MongoDB not available')));
@@ -209,7 +211,7 @@ t('full round trip: export, wipe, re-import restores every field including user 
   const before = (await all()).map(strip).sort((a, b) => a.name.localeCompare(b.name));
   const csv = (await request(app).get('/api/export').buffer(true).parse((r, cb) => { let d = ''; r.setEncoding('utf8'); r.on('data', (c) => (d += c)); r.on('end', () => cb(null, d)); })).body;
 
-  await Company.deleteMany({});
+  await Promise.all([Company.deleteMany({}), Application.deleteMany({})]);
   const re = await importCsv(csv);
   assert.equal(re.status, 200);
   assert.deepEqual([re.body.summary.created, re.body.summary.failed, re.body.summary.warnings], [2, 0, 0]);

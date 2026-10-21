@@ -320,7 +320,10 @@ export function mergeInto(entry, inc) {
     if (!blank(f, inc[f]) && blank(f, cur[f])) set(f, inc[f]);
   };
 
-  for (const f of ['contactName', 'notes', 'appStatus', 'appliedDate', 'followUpDate', 'hasRelevantRoles', 'researchStatus', 'researchedAt']) fill(f);
+  // Status and dates belong to the company's application records once it has any; import never touches those.
+  const hasApplications = (cur.applicationCount || 0) > 0;
+  const tracking = hasApplications ? [] : ['appStatus', 'appliedDate', 'followUpDate'];
+  for (const f of ['contactName', 'notes', ...tracking, 'hasRelevantRoles', 'researchStatus', 'researchedAt']) fill(f);
   if (!blank('website', inc.website) && blank('website', cur.website)) {
     set('website', inc.website);
     set('domain', inc.domain);

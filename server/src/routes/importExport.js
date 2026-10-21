@@ -52,7 +52,7 @@ function publicPlan(plan, extra = {}) {
   };
 }
 
-export function registerImportExport(app, { upload, wrap }) {
+export function registerImportExport(app, { upload, wrap, apps }) {
   // Step 1: parse the file and suggest a column mapping. Writes nothing.
   app.post('/api/import/preview', upload.single('file'), wrap(async (req, res) => {
     const { headers, records, delimiter, blankRows } = readFile(req);
@@ -94,14 +94,19 @@ export function registerImportExport(app, { upload, wrap }) {
 
     if (!dryRun) {
       try {
+        const touched = [];
         for (let i = 0; i < plan.toInsert.length; i += BATCH) {
-          await Company.insertMany(plan.toInsert.slice(i, i + BATCH), { ordered: false });
+          const docs = await Company.insertMany(plan.toInsert.slice(i, i + BATCH), { ordered: false });
+          touched.push(...docs.map((d) => d._id));
         }
         for (let i = 0; i < plan.toUpdate.length; i += BATCH) {
           await Company.bulkWrite(
             plan.toUpdate.slice(i, i + BATCH).map((u) => ({ updateOne: { filter: { _id: u.id }, update: { $set: u.set } } }))
           );
         }
+        // Imported status/date columns become an application record (never overwriting existing applications).
+        touched.push(...plan.toUpdate.map((u) => u.id));
+        if (apps) await apps.syncLegacy(touched);
       } catch (e) {
         console.error(e);
         throw Object.assign(

@@ -9,8 +9,16 @@ export function buildFilter(q = {}) {
     const rx = new RegExp(esc(text), 'i');
     f.$or = [{ name: rx }, { domain: rx }, { industry: rx }, { location: rx }, { notes: rx }, { contactName: rx }];
   }
-  for (const k of ['fundingStatus', 'fundingStage', 'appStatus', 'researchStatus', 'hasRelevantRoles']) {
+  for (const k of ['fundingStatus', 'fundingStage', 'researchStatus', 'hasRelevantRoles']) {
     if (one(q[k])) f[k] = String(one(q[k]));
+  }
+  // A company matches a status if ANY of its applications has it. Companies not yet converted to application
+  // records (older data) are matched on their own status field.
+  if (one(q.appStatus)) {
+    const s = String(one(q.appStatus));
+    const and = f.$and || [];
+    and.push({ $or: [{ appStatuses: s }, { applicationCount: { $not: { $gt: 0 } }, appStatus: s }] });
+    f.$and = and;
   }
   if (one(q.location)) f.location = new RegExp(esc(one(q.location)), 'i');
   if (one(q.industry)) f.industry = new RegExp(esc(one(q.industry)), 'i');

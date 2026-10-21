@@ -13,6 +13,11 @@ React + Vite + Tailwind  --/api proxy-->  Express  -->  MongoDB
 - `lib/importer.js`: aliases, mapping validation, row normalisation, duplicate matching, merge rules, `planImport` (pure, no DB).
 - `lib/exportCsv.js`: export columns, formula guard, extra columns.
 - `routes/importExport.js`: preview / import / export routes.
+- `models/Application.js`: one application per role (unique per company+role and company+job URL); embedded activity history.
+- `lib/applications.js`: pure rules (validation, status transitions, history, rollup, overdue).
+- `lib/applicationService.js`: persistence, duplicate checks, company summary, legacy compatibility, migration.
+- `routes/applications.js`: application routes and CSV export.
+- `scripts/migrate-applications.js`: optional manual migration.
 - `lib/csv.js`: URL, domain and funding normalisers.
 - `lib/filters.js`: query-string to Mongo filter (regex-escaped, all filters ANDed) and sort map.
 - `config/research.js`: limits, user-agent, role keywords (env `RESEARCH_ROLE_KEYWORDS`).
@@ -37,7 +42,12 @@ React + Vite + Tailwind  --/api proxy-->  Express  -->  MongoDB
 | POST | `/api/import/preview` (multipart `file`) | parse + suggested column mapping; writes nothing |
 | POST | `/api/import` (multipart `file`, `mapping`, `policy`, `decisions`, `dryRun`) | dry-run plan or apply; returns created/updated/skipped/failed/possibleDuplicates, reasons, warnings, failed rows |
 | GET | `/api/export?...same filters` | CSV download |
-| GET | `/api/stats`, `/api/facets` | dashboard numbers, filter options |
+| GET/POST | `/api/companies/:id/applications` | list / add an application (409 on duplicates) |
+| PATCH/DELETE | `/api/applications/:id` | edit (status, dates, contact, notes…) / delete |
+| POST | `/api/applications/:id/activity` `{note}` | add a manual history entry |
+| GET | `/api/applications?status&followUpDue&limit` | applications across companies (follow-ups due) |
+| GET | `/api/applications/export` | applications CSV |
+| GET | `/api/stats`, `/api/facets` | dashboard numbers (application based), filter options |
 
 ## Client (`client/src`)
 `App.jsx` holds filters/data state (250ms debounced search). Components: `Stats`, `CompanyTable` (inline status change), `EditDrawer` (edit, funding, research results), `ImportButton`. `api.js` wraps fetch with friendly errors.

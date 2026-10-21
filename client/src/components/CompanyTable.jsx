@@ -1,14 +1,5 @@
 import { STATUSES } from '../api'
-
-const statusTone = {
-  'Not Applied': 'bg-stone-100 text-stone-600',
-  'To Apply': 'bg-amber-50 text-amber-800',
-  Applied: 'bg-sky-50 text-sky-800',
-  Replied: 'bg-teal-50 text-teal-800',
-  Interview: 'bg-emerald-100 text-emerald-900',
-  Rejected: 'bg-rose-50 text-rose-800',
-  Offer: 'bg-emerald-600 text-white',
-}
+import { statusTone, followUpLabel } from '../tracking'
 
 export const fmtDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '')
 
@@ -26,7 +17,6 @@ const RESEARCH_BADGE = {
 
 export default function CompanyTable({ items, onOpen, onStatus, picked = new Set(), onPick, onPickAll }) {
   const allPicked = items.length > 0 && items.every((c) => picked.has(c._id))
-  const today = new Date().toISOString().slice(0, 10)
   return (
     <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
       <table className="w-full text-left text-sm">
@@ -40,7 +30,9 @@ export default function CompanyTable({ items, onOpen, onStatus, picked = new Set
         </thead>
         <tbody className="divide-y divide-stone-100">
           {items.map((c) => {
-            const overdue = c.followUpDate && fmtDate(c.followUpDate) <= today && ['Applied', 'Replied', 'Interview'].includes(c.appStatus)
+            // c.followUpDate is the earliest follow-up among the company's still-open applications.
+            const fu = followUpLabel({ followUpDate: c.followUpDate, status: c.appStatus })
+            const many = (c.applicationCount || 0) > 1
             return (
               <tr key={c._id} className="hover:bg-stone-50/70">
                 <td className="px-3 py-2"><input type="checkbox" aria-label={`Select ${c.name}`} checked={picked.has(c._id)} onChange={() => onPick(c._id)} /></td>
@@ -67,15 +59,29 @@ export default function CompanyTable({ items, onOpen, onStatus, picked = new Set
                   {c.hasRelevantRoles === 'yes' && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800">eng roles</span>}
                 </td>
                 <td className="px-3 py-2">
-                  <select
-                    aria-label={`Status for ${c.name}`} value={c.appStatus}
-                    onChange={(e) => onStatus(c, e.target.value).catch(() => {})}
-                    className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${statusTone[c.appStatus]}`}
-                  >
-                    {STATUSES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
+                  {many ? (
+                    // Several roles: each has its own status, so there is no single one to edit here.
+                    <button
+                      onClick={() => onOpen(c)}
+                      title={`Open to manage each role. Statuses: ${(c.appStatuses || []).join(', ')}`}
+                      className={`rounded-full px-2 py-1 text-xs font-medium ${statusTone[c.appStatus]}`}
+                    >
+                      {c.appStatus} · {c.applicationCount} roles
+                    </button>
+                  ) : (
+                    <select
+                      aria-label={`Status for ${c.name}`} value={c.appStatus}
+                      onChange={(e) => onStatus(c, e.target.value).catch(() => {})}
+                      className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${statusTone[c.appStatus]}`}
+                    >
+                      {STATUSES.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  )}
                 </td>
-                <td className={`px-3 py-2 text-xs tabular-nums ${overdue ? 'font-medium text-rose-700' : 'text-stone-600'}`}>{fmtDate(c.followUpDate) || '–'}{overdue && ' • due'}</td>
+                <td className="px-3 py-2 text-xs tabular-nums text-stone-600">
+                  {fmtDate(c.followUpDate) || '–'}
+                  {fu && <span className={`ml-1 rounded px-1.5 py-0.5 font-medium ${fu.tone}`}>{fu.text}</span>}
+                </td>
               </tr>
             )
           })}

@@ -62,9 +62,14 @@ const schema = new mongoose.Schema(
     researchPages: { type: Number, default: 0 },
     researchLog: { type: [String], default: [] },
 
+    // Summary of this company's Application records, maintained by the server (see lib/applicationService.js).
+    // Status and dates are edited on the applications themselves; these fields keep lists, filters and exports working.
     appStatus: { type: String, enum: STATUSES, default: 'Not Applied', index: true },
+    appStatuses: { type: [String], default: [], index: true },
+    applicationCount: { type: Number, default: 0 },
     appliedDate: Date,
     followUpDate: Date,
+    lastContactDate: Date,
     notes: { type: String, default: '' },
     extra: { type: mongoose.Schema.Types.Mixed, default: {} },
   },

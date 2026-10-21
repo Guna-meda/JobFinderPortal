@@ -34,7 +34,7 @@ Set it in `server/.env`:
 | CSV import wizard: column mapping, dry-run review, duplicate policy, error CSV, protected application data | Done (see "CSV import") |
 | Dashboard: total, researched, applications sent, replies, interviews | Done |
 | Search + filters: funding, stage, location, industry, engineering roles, status, research | Done |
-| Status tracking (Not Applied → Offer), notes, applied/follow-up dates, contact details | Done |
+| Application tracking: one application per role, statuses, dates, follow-up due/overdue, contacts, notes, activity history, duplicate protection | Done (see "Application tracking") |
 | Edit/delete companies, CSV export (respects current filters) | Done |
 | Website research: evidence-backed findings (careers page, public email, role leads, funding statements) with per-finding sources; accept/edit/reject; single and batch; SSRF-hardened | Done, best-effort (see "Website research") |
 | Funding verification | Research can surface the company's own funding statement as an unverified lead; **independent verification is manual** (source URL + "verified" tick) |
@@ -46,6 +46,34 @@ Set it in `server/.env`:
 - "Not detected" never means "does not exist". Role matches are leads, not proof. Funding is never inferred: a company's own statement is recorded as unverified, and CSV-imported funding shows "(unverified)" until you verify it.
 - Research is polite and bounded (see "Research safety"), blocks private/internal addresses, and never bypasses logins, CAPTCHAs or robots.txt.
 - No emails are ever sent and no applications are made automatically.
+
+## Application tracking
+Each company can have **several applications, one per role**, each with its own status, so an interview for one role never forces the others to "Interview". Open a company and use **Applications → Add application**.
+
+| Field | Notes |
+|---|---|
+| Role / title | Optional. Empty means a "general application" to the company (allowed once per company). |
+| Job posting URL | Validated (http/https). |
+| Status | Not Applied, To Apply, Applied, Replied, Interview, Rejected, Offer. Any status can move to any other. |
+| Applied date, last contact, next follow-up | Real calendar dates (`YYYY-MM-DD`). Applied and last-contact can't be in the future; a follow-up can't be before the applied date. |
+| Contact name, email, profile URL | Public professional details only. |
+| Next action, notes | Notes are per application and are never touched by imports or research. |
+| Created / updated | Set automatically. |
+
+**Behaviour**
+- Moving to Applied (or later) records today as the applied date if you haven't set one; Replied, Interview, Offer and Rejected fill a missing last-contact date. Moving backwards never erases a date.
+- **Activity history** per application: creation, every status change, application submitted, applied-date/follow-up/last-contact changes, role or URL changes, plus manual notes you log ("emailed the recruiter"). Note edits are not logged. The last 200 entries are kept.
+- **Duplicates are refused**: the same role at the same company (case, punctuation and spacing ignored), the same job posting URL (ignoring `www`, trailing slash, `#fragment` and tracking parameters like `utm_*`), or a second general application. The database enforces this with unique indexes, so two simultaneous requests can't both succeed.
+- **Follow-ups:** open applications (not Rejected/Offer) with a follow-up date of today or earlier are *due*; before today is *overdue*. They show as red/amber labels in the table and the drawer, in a banner at the top (with a link to each company), and behind the **Follow-up due** quick filter.
+- **Quick filters** above the table: To Apply, Applied, Replied, Interview, Rejected, Offer, Follow-up due. A company matches a status if any of its applications has it. The dashboard counts **applications**, not companies.
+- The company row shows a summary (furthest-along status, earliest open follow-up, number of roles). With several roles the status is managed on each application. The older company-level status/date fields still work through the API: with one application they edit it, with none they create it, with several they are refused (409).
+- **Export applications CSV** (link above the table) lists every application with dates, contact, notes and activity. The company CSV export carries only the company-level summary.
+- Nothing in the app sends an application or an email. Deleting a company also deletes its applications (the confirmation says how many).
+
+### Migration (what you need to do)
+**Nothing is required.** On every start the server runs an idempotent, non-destructive migration: any company that has company-level tracking data (status other than Not Applied, an applied date or a follow-up date) but no application records gets one general application carrying those values, contact name/email and a "migrated" history entry. It never invents dates, never deletes or rewrites existing data, and leaves company notes where they are. Companies with no tracking data are left alone. You can also run it by hand: `npm --prefix server run migrate:applications`. Running it twice does nothing the second time. If you roll back to an older version of the app, the company-level fields are still present and still hold the summary values.
+
+Import note: status/date columns in a CSV create a general application for new companies; for a company that already has applications they are ignored. Re-importing an export into an empty database recreates one general application per company from the summary columns (per-role detail is in the applications CSV, which can't be re-imported yet).
 
 ## Website research
 Open a company and press **Run research** (or tick several rows and press **Research selected**, max 25). Research runs in the background; the row and drawer show progress, and you can retry any failure later. **Nothing is written to the company until you accept a finding.**

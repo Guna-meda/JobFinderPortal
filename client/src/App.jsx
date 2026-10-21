@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, STATUSES, FUNDING_STATUSES, FUNDING_STAGES } from './api'
+import { api, FUNDING_STATUSES, FUNDING_STAGES } from './api'
 import Stats from './components/Stats'
 import CompanyTable from './components/CompanyTable'
 import EditDrawer from './components/EditDrawer'
 import ImportButton from './components/ImportButton'
+import FollowUpBanner from './components/FollowUpBanner'
 
-const EMPTY = { q: '', fundingStatus: '', fundingStage: '', location: '', industry: '', hasRelevantRoles: '', appStatus: '', researchStatus: '', sort: 'name' }
+const EMPTY = { q: '', fundingStatus: '', fundingStage: '', location: '', industry: '', hasRelevantRoles: '', appStatus: '', followUpDue: '', researchStatus: '', sort: 'name' }
+const QUICK = ['To Apply', 'Applied', 'Replied', 'Interview', 'Rejected', 'Offer']
 const BATCH_LIMIT = 25
 
 const sel = 'rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-accent/40'
@@ -82,6 +84,10 @@ export default function App() {
     api.stats().then(setStats)
   }
 
+  // Quick filters: one application status, or follow-ups due. Clicking the active chip clears it.
+  const quick = (key, value) => setFilters((f) => ({ ...f, appStatus: key === 'appStatus' && f.appStatus !== value ? value : '', followUpDue: key === 'followUpDue' && !f.followUpDue ? 'true' : '' }))
+  const openCompany = async (id) => { try { setSelected(await api.company(id)) } catch (e) { flash(e.message) } }
+
   const togglePick = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const pickAll = (ids, on) => setPicked((p) => { const n = new Set(p); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n })
 
@@ -115,6 +121,20 @@ export default function App() {
       <main className="mx-auto max-w-7xl space-y-5 px-6 py-6">
         {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
         <Stats stats={stats} />
+        <FollowUpBanner stats={stats} refreshKey={data} onOpenCompany={openCompany} />
+
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Quick filters">
+          <button onClick={() => setFilters((f) => ({ ...f, appStatus: '', followUpDue: '' }))} aria-pressed={!filters.appStatus && !filters.followUpDue} className={`rounded-full border px-3 py-1 text-xs font-medium ${!filters.appStatus && !filters.followUpDue ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white hover:bg-stone-50'}`}>All</button>
+          {QUICK.map((s) => (
+            <button key={s} onClick={() => quick('appStatus', s)} aria-pressed={filters.appStatus === s} className={`rounded-full border px-3 py-1 text-xs font-medium ${filters.appStatus === s ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white hover:bg-stone-50'}`}>
+              {s}{stats?.byStatus?.[s] ? <span className="ml-1 opacity-70">{stats.byStatus[s]}</span> : null}
+            </button>
+          ))}
+          <button onClick={() => quick('followUpDue', true)} aria-pressed={!!filters.followUpDue} className={`rounded-full border px-3 py-1 text-xs font-medium ${filters.followUpDue ? 'border-rose-700 bg-rose-700 text-white' : stats?.followUpsOverdue ? 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100' : 'border-stone-300 bg-white hover:bg-stone-50'}`}>
+            Follow-up due{stats?.followUpsDue ? <span className="ml-1 opacity-80">{stats.followUpsDue}</span> : null}
+          </button>
+          <a href={api.exportApplicationsUrl} className="ml-auto text-xs text-accent underline" title="Every application with its dates, contact, notes and activity">Export applications CSV</a>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -127,7 +147,6 @@ export default function App() {
           <Select label="Location" value={filters.location} onChange={set('location')} options={facets.locations} />
           <Select label="Industry" value={filters.industry} onChange={set('industry')} options={facets.industries} />
           <Select label="Eng roles" value={filters.hasRelevantRoles} onChange={set('hasRelevantRoles')} options={[{ value: 'yes', label: 'Has engineering roles' }, { value: 'unknown', label: 'Unknown' }, { value: 'no', label: 'No roles' }]} />
-          <Select label="Status" value={filters.appStatus} onChange={set('appStatus')} options={STATUSES} />
           <Select label="Research" value={filters.researchStatus} onChange={set('researchStatus')} options={[
             { value: 'not_researched', label: 'Not researched' }, { value: 'running', label: 'Running' }, { value: 'researched', label: 'Researched' },
             { value: 'partial', label: 'Partly read' }, { value: 'not_found', label: 'Nothing detected' }, { value: 'failed', label: 'Failed' },
@@ -178,7 +197,8 @@ export default function App() {
         ) : (
           <CompanyTable
             items={data.items} onOpen={setSelected} picked={picked} onPick={togglePick} onPickAll={pickAll}
-            onStatus={(c, appStatus) => patch(c._id, { appStatus, ...(appStatus === 'Applied' && !c.appliedDate ? { appliedDate: new Date().toISOString().slice(0, 10) } : {}) })}
+            // The server records the applied date and activity history when the status changes.
+            onStatus={(c, appStatus) => patch(c._id, { appStatus })}
           />
         )}
       </main>

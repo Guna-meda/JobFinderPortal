@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { STATUSES, FUNDING_STATUSES, FUNDING_STAGES } from '../api'
-import { fmtDate } from './CompanyTable'
+import { FUNDING_STATUSES, FUNDING_STAGES } from '../api'
 import ResearchPanel from './ResearchPanel'
+import ApplicationsPanel from './ApplicationsPanel'
 
 const input = 'w-full rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40'
 
@@ -20,8 +20,7 @@ const initial = (c) => ({
   fundingStatus: c.fundingStatus, fundingStage: c.fundingStage, fundingAmount: c.fundingAmount || '', fundingDate: c.fundingDate || '',
   fundingSourceUrl: c.fundingSourceUrl || '', fundingVerified: !!c.fundingVerified,
   careersUrl: c.careersUrl || '', contactEmail: c.contactEmail || '', contactName: c.contactName || '',
-  hasRelevantRoles: c.hasRelevantRoles, appStatus: c.appStatus,
-  appliedDate: fmtDate(c.appliedDate), followUpDate: fmtDate(c.followUpDate), notes: c.notes || '',
+  hasRelevantRoles: c.hasRelevantRoles, notes: c.notes || '',
 })
 
 export default function EditDrawer({ company: c, onClose, onSave, onCompany, onDelete }) {
@@ -60,19 +59,16 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
         <div className="flex items-start justify-between border-b border-stone-200 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold">{c.name}</h2>
-            <p className="text-xs text-stone-500">Edit details, track your application</p>
+            <p className="text-xs text-stone-500">Company details, applications and research</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="text-xl leading-none text-stone-400 hover:text-ink">×</button>
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <ApplicationsPanel company={c} onCompanyChanged={onCompany} />
+
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Application</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Status"><select className={input} value={f.appStatus} onChange={set('appStatus')}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></Field>
-              <Field label="Applied on"><input type="date" className={input} value={f.appliedDate} onChange={set('appliedDate')} /></Field>
-              <Field label="Follow up"><input type="date" className={input} value={f.followUpDate} onChange={set('followUpDate')} /></Field>
-            </div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Company contact and notes</h3>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Contact name"><input className={input} value={f.contactName} onChange={set('contactName')} /></Field>
               <Field label="Contact email"><input type="email" className={input} value={f.contactEmail} onChange={set('contactEmail')} /></Field>
@@ -125,7 +121,7 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
 
         <div className="flex items-center gap-3 border-t border-stone-200 px-5 py-3">
           <button disabled={saving} className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
-          <button type="button" onClick={() => window.confirm(`Delete ${c.name}?`) && onDelete()} className="text-sm text-rose-700 hover:underline">Delete</button>
+          <button type="button" onClick={() => window.confirm(`Delete ${c.name}${c.applicationCount ? ` and its ${c.applicationCount} application${c.applicationCount === 1 ? '' : 's'}` : ''}? This cannot be undone.`) && onDelete()} className="text-sm text-rose-700 hover:underline">Delete</button>
           <span role="status" className={`ml-auto text-sm ${msg.type === 'err' ? 'text-rose-700' : 'text-emerald-700'}`}>{msg.text}</span>
         </div>
       </form>

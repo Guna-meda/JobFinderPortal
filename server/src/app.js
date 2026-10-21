@@ -11,7 +11,11 @@ import {
   FUNDING_STATUSES,
   FUNDING_STAGES,
 } from './lib/csv.js';
+import Application from './models/Application.js';
 import { createResearchService } from './lib/researchService.js';
+import { createApplicationService } from './lib/applicationService.js';
+import { TERMINAL } from './lib/applications.js';
+import { registerApplications } from './routes/applications.js';
 import { registerImportExport } from './routes/importExport.js';
 import { registerResearch } from './routes/research.js';
 
@@ -58,7 +62,7 @@ export function cleanPatch(body = {}) {
   return patch;
 }
 
-export function createApp({ research = createResearchService() } = {}) {
+export function createApp({ research = createResearchService(), applications: apps = createApplicationService() } = {}) {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
@@ -83,11 +87,14 @@ export function createApp({ research = createResearchService() } = {}) {
   }));
 
   app.get('/api/stats', wrap(async (req, res) => {
-    const [total, researched, byStatus, followUpsDue, withRoles] = await Promise.all([
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const [total, researched, byStatus, followUpsDue, followUpsOverdue, withRoles] = await Promise.all([
       Company.countDocuments(),
       Company.countDocuments({ researchStatus: { $in: ['researched', 'partial', 'not_found'] } }),
-      Company.aggregate([{ $group: { _id: '$appStatus', n: { $sum: 1 } } }]),
-      Company.countDocuments({ followUpDate: { $lte: new Date() }, appStatus: { $in: ['Applied', 'Replied', 'Interview'] } }),
+      Application.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
+      Application.countDocuments({ followUpDate: { $lte: now }, status: { $nin: TERMINAL } }),
+      Application.countDocuments({ followUpDate: { $lt: todayStart }, status: { $nin: TERMINAL } }),
       Company.countDocuments({ hasRelevantRoles: 'yes' }),
     ]);
     const s = Object.fromEntries(STATUSES.map((k) => [k, 0]));
@@ -100,17 +107,20 @@ export function createApp({ research = createResearchService() } = {}) {
       interviews: s.Interview,
       offers: s.Offer,
       followUpsDue,
+      followUpsOverdue,
       withRoles,
       byStatus: s,
     });
   }));
 
-  registerImportExport(app, { upload, wrap });
+  registerImportExport(app, { upload, wrap, apps });
 
   app.post('/api/companies', wrap(async (req, res) => {
     const patch = cleanPatch(req.body);
     if (!patch.name) throw bad('Company name is required.');
-    res.status(201).json(await Company.create(patch));
+    const created = await Company.create(patch);
+    await apps.syncLegacy([created._id]); // tracking fields in the request become an application
+    res.status(201).json(await Company.findById(created._id).lean());
   }));
 
   app.get('/api/companies/:id', wrap(async (req, res) => {
@@ -125,6 +135,10 @@ export function createApp({ research = createResearchService() } = {}) {
     const patch = cleanPatch(req.body);
     const current = await Company.findById(req.params.id, 'careersUrl contactEmail').lean();
     if (!current) return res.status(404).json({ error: 'Company not found.' });
+    // Status and dates now live on applications; the company-level fields are a summary kept by the server.
+    const tracking = {};
+    for (const k of ['appStatus', 'appliedDate', 'followUpDate']) if (k in patch) { tracking[k] = patch[k]; delete patch[k]; }
+    await apps.legacyApply(req.params.id, tracking);
     // A hand-edited value no longer comes from the recorded research source, so drop that provenance.
     if ('careersUrl' in patch && (patch.careersUrl || '') !== (current.careersUrl || '')) Object.assign(patch, { careersSourceUrl: '', careersVerified: false });
     if ('contactEmail' in patch && (patch.contactEmail || '') !== (current.contactEmail || '')) patch.contactEmailSourceUrl = '';
@@ -135,10 +149,12 @@ export function createApp({ research = createResearchService() } = {}) {
   app.delete('/api/companies/:id', wrap(async (req, res) => {
     if (!isId(req.params.id)) throw bad('Invalid id.');
     await Company.findByIdAndDelete(req.params.id);
+    await apps.removeForCompany(req.params.id); // never leave orphaned applications behind
     res.status(204).end();
   }));
 
   registerResearch(app, { wrap, service: research });
+  registerApplications(app, { wrap, apps });
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
@@ -147,7 +163,10 @@ export function createApp({ research = createResearchService() } = {}) {
     if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large (10 MB max).' });
     const status = err.status || (err.name === 'ValidationError' || err.name === 'CastError' ? 400 : 500);
     if (status === 500) console.error(err);
-    res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message });
+    res.status(status).json({
+      error: status === 500 ? 'Internal server error' : err.message,
+      ...(status < 500 && typeof err.code === 'string' ? { code: err.code } : {}),
+    });
   });
 
   return app;
