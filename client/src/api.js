@@ -11,7 +11,7 @@ async function req(path, opts = {}) {
   }
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status, data });
   return data;
 }
 
@@ -30,9 +30,22 @@ export const api = {
   create: (body) => req('/companies', json('POST', body)),
   remove: (id) => req(`/companies/${id}`, { method: 'DELETE' }),
   research: (id) => req(`/companies/${id}/research`, { method: 'POST' }),
-  importCsv: (file) => {
+  researchBatch: (ids) => req('/research/batch', json('POST', { ids })),
+  researchConfig: () => req('/research/config'),
+  decideFinding: (id, fid, body) => req(`/companies/${id}/findings/${fid}`, json('POST', body)),
+  decideFindings: (id, body) => req(`/companies/${id}/findings`, json('POST', body)),
+  importPreview: (file) => {
     const fd = new FormData();
     fd.append('file', file);
+    return req('/import/preview', { method: 'POST', body: fd });
+  },
+  importRun: (file, { mapping, policy, decisions, dryRun }) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('mapping', JSON.stringify(mapping));
+    fd.append('policy', policy);
+    fd.append('decisions', JSON.stringify(decisions));
+    fd.append('dryRun', String(dryRun));
     return req('/import', { method: 'POST', body: fd });
   },
   exportUrl: (filters) => `/api/export?${qs(filters)}`,

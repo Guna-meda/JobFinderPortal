@@ -6,6 +6,7 @@ import EditDrawer from './components/EditDrawer'
 import ImportButton from './components/ImportButton'
 
 const EMPTY = { q: '', fundingStatus: '', fundingStage: '', location: '', industry: '', hasRelevantRoles: '', appStatus: '', researchStatus: '', sort: 'name' }
+const BATCH_LIMIT = 25
 
 const sel = 'rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-accent/40'
 
@@ -29,6 +30,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
+  const [picked, setPicked] = useState(() => new Set())
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -40,6 +42,8 @@ export default function App() {
     try {
       const [list, s, f] = await Promise.all([api.list(debounced), api.stats(), api.facets()])
       setData(list); setStats(s); setFacets(f); setError('')
+      // Keep an open drawer in step with the server (research progress, accepted findings).
+      setSelected((cur) => (cur ? list.items.find((i) => i._id === cur._id) ?? cur : cur))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -49,9 +53,17 @@ export default function App() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // While any visible company is being researched (or the open one is), poll for progress.
+  const anyRunning = data.items.some((c) => c.researchStatus === 'running') || selected?.researchStatus === 'running'
+  useEffect(() => {
+    if (!anyRunning) return undefined
+    const id = setInterval(refresh, 2000)
+    return () => clearInterval(id)
+  }, [anyRunning, refresh])
+
   const set = (k) => (v) => setFilters((f) => ({ ...f, [k]: v }))
   const dirty = Object.entries(filters).some(([k, v]) => k !== 'sort' && v)
-  const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 4000) }
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 5000) }
 
   const patch = async (id, p) => {
     try {
@@ -61,6 +73,26 @@ export default function App() {
       api.stats().then(setStats)
       return updated
     } catch (e) { flash(e.message); throw e }
+  }
+
+  // Called by the research panel after any server-side change to a company.
+  const companyChanged = (c) => {
+    setData((d) => ({ ...d, items: d.items.map((x) => (x._id === c._id ? c : x)) }))
+    setSelected((s) => (s && s._id === c._id ? c : s))
+    api.stats().then(setStats)
+  }
+
+  const togglePick = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const pickAll = (ids, on) => setPicked((p) => { const n = new Set(p); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n })
+
+  const researchSelected = async () => {
+    try {
+      const r = await api.researchBatch([...picked])
+      const why = r.skipped.length ? ` Skipped ${r.skipped.length} (${[...new Set(r.skipped.map((s) => s.reason))].join(', ')}).` : ''
+      flash(`Research started for ${r.started.length} ${r.started.length === 1 ? 'company' : 'companies'}.${why} Companies are checked a couple at a time, politely.`)
+      setPicked(new Set())
+      refresh()
+    } catch (e) { flash(e.message) }
   }
 
   return (
@@ -75,7 +107,7 @@ export default function App() {
             <a href={api.exportUrl({ ...debounced })} className="rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-stone-50">
               Export CSV{dirty ? ' (filtered)' : ''}
             </a>
-            <ImportButton onDone={(r) => { flash(`Imported ${r.inserted} new, ${r.updated} updated, ${r.skipped} skipped${r.errors.length ? `, ${r.errors.length} bad rows` : ''}.`); refresh() }} onError={flash} />
+            <ImportButton onDone={(r) => { const s = r.summary; flash(`Import done: ${s.created} created, ${s.updated} updated, ${s.skipped} skipped, ${s.failed} failed.`); refresh() }} />
           </div>
         </div>
       </header>
@@ -96,7 +128,10 @@ export default function App() {
           <Select label="Industry" value={filters.industry} onChange={set('industry')} options={facets.industries} />
           <Select label="Eng roles" value={filters.hasRelevantRoles} onChange={set('hasRelevantRoles')} options={[{ value: 'yes', label: 'Has engineering roles' }, { value: 'unknown', label: 'Unknown' }, { value: 'no', label: 'No roles' }]} />
           <Select label="Status" value={filters.appStatus} onChange={set('appStatus')} options={STATUSES} />
-          <Select label="Research" value={filters.researchStatus} onChange={set('researchStatus')} options={[{ value: 'not_researched', label: 'Not researched' }, { value: 'researched', label: 'Researched' }, { value: 'partial', label: 'Partial' }, { value: 'failed', label: 'Failed' }]} />
+          <Select label="Research" value={filters.researchStatus} onChange={set('researchStatus')} options={[
+            { value: 'not_researched', label: 'Not researched' }, { value: 'running', label: 'Running' }, { value: 'researched', label: 'Researched' },
+            { value: 'partial', label: 'Partly read' }, { value: 'not_found', label: 'Nothing detected' }, { value: 'failed', label: 'Failed' },
+          ]} />
           <select aria-label="Sort" className={sel} value={filters.sort} onChange={(e) => set('sort')(e.target.value)}>
             <option value="name">Sort: Name</option>
             <option value="recent">Sort: Recently updated</option>
@@ -104,7 +139,21 @@ export default function App() {
             <option value="status">Sort: Status</option>
           </select>
           {dirty && <button onClick={() => setFilters(EMPTY)} className="text-sm text-accent underline">Clear</button>}
-          <span className="ml-auto text-sm text-stone-500">{data.total} {data.total === 1 ? 'company' : 'companies'}</span>
+          <span className="ml-auto flex items-center gap-3 text-sm text-stone-500">
+            {picked.size > 0 && (
+              <>
+                <button
+                  onClick={researchSelected} disabled={picked.size > BATCH_LIMIT}
+                  title={picked.size > BATCH_LIMIT ? `Select at most ${BATCH_LIMIT}` : 'Research the selected companies (fetches only their own public pages)'}
+                  className="rounded-md border border-stone-300 bg-white px-2.5 py-1 font-medium text-ink hover:bg-stone-50 disabled:opacity-50"
+                >
+                  Research selected ({picked.size})
+                </button>
+                <button onClick={() => setPicked(new Set())} className="text-accent underline">Clear selection</button>
+              </>
+            )}
+            <span>{data.total} {data.total === 1 ? 'company' : 'companies'}</span>
+          </span>
         </div>
 
         {loading ? (
@@ -127,7 +176,10 @@ export default function App() {
             )}
           </div>
         ) : (
-          <CompanyTable items={data.items} onOpen={setSelected} onStatus={(c, appStatus) => patch(c._id, { appStatus, ...(appStatus === 'Applied' && !c.appliedDate ? { appliedDate: new Date().toISOString().slice(0, 10) } : {}) })} />
+          <CompanyTable
+            items={data.items} onOpen={setSelected} picked={picked} onPick={togglePick} onPickAll={pickAll}
+            onStatus={(c, appStatus) => patch(c._id, { appStatus, ...(appStatus === 'Applied' && !c.appliedDate ? { appliedDate: new Date().toISOString().slice(0, 10) } : {}) })}
+          />
         )}
       </main>
 
@@ -137,12 +189,7 @@ export default function App() {
           company={selected}
           onClose={() => setSelected(null)}
           onSave={(p) => patch(selected._id, p)}
-          onResearch={async () => {
-            const c = await api.research(selected._id)
-            setData((d) => ({ ...d, items: d.items.map((x) => (x._id === c._id ? c : x)) }))
-            setSelected(c); refresh()
-            return c
-          }}
+          onCompany={companyChanged}
           onDelete={async () => { await api.remove(selected._id); setSelected(null); refresh() }}
         />
       )}

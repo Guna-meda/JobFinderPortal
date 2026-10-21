@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test test/csv.test.js"
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -16,6 +16,10 @@
     "dotenv": "^18.0.8",
     "express": "^5.3.0",
     "mongoose": "^9.11.3",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "robots-parser": "^3.0.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
   }
 }

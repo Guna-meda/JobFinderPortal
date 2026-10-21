@@ -1,19 +1,19 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { stringify } from 'csv-stringify/sync';
 import mongoose from 'mongoose';
 import Company from './models/Company.js';
 import { buildFilter, sortFor } from './lib/filters.js';
 import {
-  parseCompanies,
   normalizeUrl,
   domainOf,
   STATUSES,
   FUNDING_STATUSES,
   FUNDING_STAGES,
 } from './lib/csv.js';
-import { researchCompany } from './lib/research.js';
+import { createResearchService } from './lib/researchService.js';
+import { registerImportExport } from './routes/importExport.js';
+import { registerResearch } from './routes/research.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -21,7 +21,7 @@ const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
 const isId = (id) => mongoose.isValidObjectId(id);
 
 const EDITABLE = [
-  'name', 'website', 'location', 'industry', 'fundingStatus', 'fundingStage', 'fundingSourceUrl', 'fundingVerified',
+  'name', 'website', 'location', 'industry', 'fundingStatus', 'fundingStage', 'fundingAmount', 'fundingDate', 'fundingSourceUrl', 'fundingVerified',
   'careersUrl', 'contactEmail', 'contactName', 'hasRelevantRoles', 'appStatus', 'appliedDate', 'followUpDate', 'notes',
 ];
 const URL_FIELDS = ['website', 'careersUrl', 'fundingSourceUrl'];
@@ -41,6 +41,12 @@ export function cleanPatch(body = {}) {
       patch[k] = u;
     }
   }
+  for (const k of ['fundingAmount', 'fundingDate']) {
+    if (k in patch) {
+      patch[k] = String(patch[k] ?? '').trim();
+      if (patch[k].length > 100) throw bad(`${k} is too long (100 characters max).`);
+    }
+  }
   if (patch.contactEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(patch.contactEmail)) throw bad('Contact email is not valid.');
   for (const k of DATE_FIELDS) {
     if (k in patch) {
@@ -52,9 +58,7 @@ export function cleanPatch(body = {}) {
   return patch;
 }
 
-const csvDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
-
-export function createApp() {
+export function createApp({ research = createResearchService() } = {}) {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
@@ -81,7 +85,7 @@ export function createApp() {
   app.get('/api/stats', wrap(async (req, res) => {
     const [total, researched, byStatus, followUpsDue, withRoles] = await Promise.all([
       Company.countDocuments(),
-      Company.countDocuments({ researchStatus: { $in: ['researched', 'partial'] } }),
+      Company.countDocuments({ researchStatus: { $in: ['researched', 'partial', 'not_found'] } }),
       Company.aggregate([{ $group: { _id: '$appStatus', n: { $sum: 1 } } }]),
       Company.countDocuments({ followUpDate: { $lte: new Date() }, appStatus: { $in: ['Applied', 'Replied', 'Interview'] } }),
       Company.countDocuments({ hasRelevantRoles: 'yes' }),
@@ -101,72 +105,7 @@ export function createApp() {
     });
   }));
 
-  app.post('/api/import', upload.single('file'), wrap(async (req, res) => {
-    if (!req.file) throw bad('Attach a CSV file in the "file" field.');
-    let parsed;
-    try {
-      parsed = parseCompanies(req.file.buffer.toString('utf8'));
-    } catch (e) {
-      throw bad(e.message);
-    }
-    const existing = await Company.find({}, 'name domain').lean();
-    const byDomain = new Map(existing.filter((c) => c.domain).map((c) => [c.domain, c._id]));
-    const byName = new Map(existing.map((c) => [c.name.toLowerCase(), c._id]));
-    let inserted = 0, updated = 0, skipped = 0;
-    const toInsert = [];
-    const fillOps = [];
-    const seen = new Set();
-    for (const c of parsed.companies) {
-      const key = c.domain || c.name.toLowerCase();
-      if (seen.has(key)) { skipped++; continue; }
-      seen.add(key);
-      const id = (c.domain && byDomain.get(c.domain)) || byName.get(c.name.toLowerCase());
-      if (!id) { toInsert.push(c); continue; }
-      // Existing record: only fill fields that are currently blank. Never overwrite user edits.
-      const doc = await Company.findById(id);
-      let changed = false;
-      for (const f of ['website', 'domain', 'location', 'industry', 'careersUrl', 'contactEmail', 'notes']) {
-        if (!doc[f] && c[f]) { doc[f] = c[f]; changed = true; }
-      }
-      if (changed) { fillOps.push(doc.save()); updated++; } else skipped++;
-    }
-    if (toInsert.length) { await Company.insertMany(toInsert, { ordered: false }); inserted = toInsert.length; }
-    await Promise.all(fillOps);
-    res.json({ inserted, updated, skipped, errors: parsed.errors, unmapped: parsed.unmapped, mapping: parsed.mapping });
-  }));
-
-  app.get('/api/export', wrap(async (req, res) => {
-    const items = await Company.find(buildFilter(req.query)).sort(sortFor(req.query.sort)).lean();
-    const rows = items.map((c) => ({
-      Company: c.name,
-      Website: c.website,
-      Location: c.location,
-      Industry: c.industry,
-      'Funding Status': c.fundingStatus,
-      'Funding Stage': c.fundingStage,
-      'Funding Source URL': c.fundingSourceUrl,
-      'Funding Verified': c.fundingVerified ? 'yes' : 'no',
-      'Careers URL': c.careersUrl,
-      'Careers Source URL': c.careersSourceUrl,
-      'Contact Email': c.contactEmail,
-      'Contact Email Source URL': c.contactEmailSourceUrl,
-      'Contact Name': c.contactName,
-      'Relevant Roles': c.hasRelevantRoles,
-      'Open Roles': (c.openRoles || []).map((r) => `${r.title} (${r.url})`).join(' | '),
-      'Research Status': c.researchStatus,
-      'Researched At': csvDate(c.researchedAt),
-      'Application Status': c.appStatus,
-      'Applied Date': csvDate(c.appliedDate),
-      'Follow-up Date': csvDate(c.followUpDate),
-      Notes: c.notes,
-    }));
-    // Prefix cells starting with = + - @ to avoid spreadsheet formula injection.
-    const safe = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) =>
-      [k, typeof v === 'string' && /^[=+\-@]/.test(v) ? `'${v}` : v])));
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="startups.csv"');
-    res.send('﻿' + stringify(safe, { header: true, columns: rows.length ? undefined : ['Company'] }));
-  }));
+  registerImportExport(app, { upload, wrap });
 
   app.post('/api/companies', wrap(async (req, res) => {
     const patch = cleanPatch(req.body);
@@ -183,8 +122,13 @@ export function createApp() {
 
   app.patch('/api/companies/:id', wrap(async (req, res) => {
     if (!isId(req.params.id)) throw bad('Invalid id.');
-    const c = await Company.findByIdAndUpdate(req.params.id, { $set: cleanPatch(req.body) }, { new: true, runValidators: true }).lean();
-    if (!c) return res.status(404).json({ error: 'Company not found.' });
+    const patch = cleanPatch(req.body);
+    const current = await Company.findById(req.params.id, 'careersUrl contactEmail').lean();
+    if (!current) return res.status(404).json({ error: 'Company not found.' });
+    // A hand-edited value no longer comes from the recorded research source, so drop that provenance.
+    if ('careersUrl' in patch && (patch.careersUrl || '') !== (current.careersUrl || '')) Object.assign(patch, { careersSourceUrl: '', careersVerified: false });
+    if ('contactEmail' in patch && (patch.contactEmail || '') !== (current.contactEmail || '')) patch.contactEmailSourceUrl = '';
+    const c = await Company.findByIdAndUpdate(req.params.id, { $set: patch }, { new: true, runValidators: true }).lean();
     res.json(c);
   }));
 
@@ -194,16 +138,7 @@ export function createApp() {
     res.status(204).end();
   }));
 
-  app.post('/api/companies/:id/research', wrap(async (req, res) => {
-    if (!isId(req.params.id)) throw bad('Invalid id.');
-    const c = await Company.findById(req.params.id);
-    if (!c) return res.status(404).json({ error: 'Company not found.' });
-    const r = await researchCompany(c);
-    const { researchStatus, researchLog, ...found } = r;
-    Object.assign(c, found, { researchStatus, researchLog, researchedAt: new Date() });
-    await c.save();
-    res.json(c);
-  }));
+  registerResearch(app, { wrap, service: research });
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

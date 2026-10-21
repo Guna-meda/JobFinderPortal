@@ -13,12 +13,19 @@ MongoDB collection `companies` (Mongoose model `Company`, timestamps on).
 | careersUrl, careersSourceUrl, careersVerified | String, String, Boolean | verified = found and loaded by research |
 | contactEmail, contactEmailSourceUrl, contactName | String | source URL is set only when research found the email |
 | hasRelevantRoles | `unknown` / `yes` / `no` | |
-| openRoles | `[{title, url}]` | text-matched links from the careers page |
-| researchStatus | `not_researched` / `researched` / `partial` / `failed` | |
-| researchedAt, researchLog | Date, [String] | log explains what was and wasn't found |
+| openRoles | `[{title, url, sourceUrl?, observedAt?}]` | roles you accepted (or imported) |
+| findings | `[Finding]` | researched evidence awaiting review; see below |
+| fundingAmount, fundingDate | String | free text, e.g. `$3M`, `May 2024` |
+| researchStatus | `not_researched` / `running` / `researched` / `partial` / `not_found` / `failed` | partial = some pages could not be read; not_found = read OK, nothing detected |
+| researchError | `{code, message, retryable}` | safe, user-facing |
+| researchStartedAt, researchProgress, researchNotFound, researchPages | | run bookkeeping; notFound lists `careers`/`email`/`roles` not detected |
+| researchedAt, researchLog | Date, [String] | log explains what was read and what was skipped |
 | appStatus | Not Applied, To Apply, Applied, Replied, Interview, Rejected, Offer | indexed |
 | appliedDate, followUpDate | Date | |
 | notes | String | |
 | extra | Mixed | unmapped CSV columns |
 
-Dashboard definitions: *applied* = Applied + Replied + Interview + Rejected + Offer; *replies* = Replied + Interview + Offer; *researched* = researched or partial.
+Dashboard definitions: *applied* = Applied + Replied + Interview + Rejected + Offer; *replies* = Replied + Interview + Offer; *researched* = a research run completed (researched, partial or not_found; failed and running don't count).
+
+## Finding (subdocument of `findings`)
+`kind` (careers/email/role/website/funding), `value` (URL, email, or the quoted funding sentence), `title` (roles), **`sourceUrl`** (the page it was seen on), **`observedAt`**, `basis` (official-link, official-page-mailto, official-page-text, keyword-match, company-statement, redirect), `confidence` (verified = seen directly on an official-site page; inferred = keyword/text lead; unverified = weak or company-claim only), `evidence`, `meta` (matched keywords; funding stage/amount/date as literally stated), `status` (pending/accepted/rejected), `decidedAt`, `seenInLatestRun`. Re-runs refresh `observedAt` and keep decisions; findings not seen again are flagged, never deleted. "Stale" means observed more than 90 days ago.

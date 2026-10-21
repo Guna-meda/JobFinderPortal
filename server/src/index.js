@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
+import { createResearchService } from './lib/researchService.js';
 
 const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/startup-finder';
 const port = process.env.PORT || 4000;
@@ -14,4 +15,8 @@ try {
   process.exit(1);
 }
 
-createApp().listen(port, () => console.log(`API listening on http://localhost:${port}`));
+const research = createResearchService();
+const recovered = await research.recoverInterrupted();
+if (recovered) console.log(`Marked ${recovered} interrupted research run(s) as failed so they can be retried.`);
+
+createApp({ research }).listen(port, () => console.log(`API listening on http://localhost:${port}`));

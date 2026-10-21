@@ -16,13 +16,23 @@ function Verified({ ok, label }) {
   return ok ? <span title={`${label}: found by research, source recorded`} className="text-emerald-700">✓</span> : null
 }
 
-export default function CompanyTable({ items, onOpen, onStatus }) {
+const RESEARCH_BADGE = {
+  running: ['researching…', 'bg-sky-50 text-sky-800 animate-pulse'],
+  researched: ['researched', 'bg-emerald-50 text-emerald-800'],
+  partial: ['partly read', 'bg-amber-50 text-amber-800'],
+  not_found: ['nothing detected', 'bg-stone-100 text-stone-600'],
+  failed: ['research failed', 'bg-rose-50 text-rose-800'],
+}
+
+export default function CompanyTable({ items, onOpen, onStatus, picked = new Set(), onPick, onPickAll }) {
+  const allPicked = items.length > 0 && items.every((c) => picked.has(c._id))
   const today = new Date().toISOString().slice(0, 10)
   return (
     <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
           <tr>
+            <th className="w-8 px-3 py-2"><input type="checkbox" aria-label="Select all on this page" checked={allPicked} onChange={(e) => onPickAll(items.map((c) => c._id), e.target.checked)} /></th>
             {['Company', 'Location', 'Industry', 'Funding', 'Careers / contact', 'Status', 'Follow-up'].map((h) => (
               <th key={h} className="px-3 py-2 font-medium">{h}</th>
             ))}
@@ -33,9 +43,12 @@ export default function CompanyTable({ items, onOpen, onStatus }) {
             const overdue = c.followUpDate && fmtDate(c.followUpDate) <= today && ['Applied', 'Replied', 'Interview'].includes(c.appStatus)
             return (
               <tr key={c._id} className="hover:bg-stone-50/70">
+                <td className="px-3 py-2"><input type="checkbox" aria-label={`Select ${c.name}`} checked={picked.has(c._id)} onChange={() => onPick(c._id)} /></td>
                 <td className="px-3 py-2">
                   <button onClick={() => onOpen(c)} className="text-left font-medium text-ink hover:text-accent hover:underline">{c.name}</button>
                   {c.website && <div className="text-xs text-stone-500">{c.domain}</div>}
+                  {RESEARCH_BADGE[c.researchStatus] && <span title={c.researchError?.message} className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] ${RESEARCH_BADGE[c.researchStatus][1]}`}>{RESEARCH_BADGE[c.researchStatus][0]}</span>}
+                  {(c.findings || []).some((f) => f.status === 'pending') && <span className="ml-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">{c.findings.filter((f) => f.status === 'pending').length} to review</span>}
                 </td>
                 <td className="px-3 py-2 text-stone-600">{c.location || '–'}</td>
                 <td className="px-3 py-2 text-stone-600">{c.industry || '–'}</td>
