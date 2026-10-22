@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import { NO_LIMITS } from './helpers/limits.js';
 import Company from '../src/models/Company.js';
 import Application from '../src/models/Application.js';
 
@@ -18,7 +19,7 @@ before(async () => {
     await mongoose.connect(URI, { serverSelectionTimeoutMS: 3000 });
     up = true;
     await Application.init();
-    app = createApp();
+    app = createApp({ limits: NO_LIMITS });
   } catch {
     console.warn(`SKIPPING API tests: cannot reach MongoDB at ${URI}`);
   }

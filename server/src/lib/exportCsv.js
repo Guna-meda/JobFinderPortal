@@ -50,5 +50,5 @@ export function buildCsv(items) {
     ...EXPORT_COLUMNS.map(([, get]) => guardCell(get(c) ?? '')),
     ...extraKeys.map((k) => guardCell(c.extra?.[k] == null ? '' : String(c.extra[k]))),
   ]);
-  return '﻿' + stringify([headers, ...rows]);
+  return '﻿' + stringify([headers.map(guardCell), ...rows]);
 }

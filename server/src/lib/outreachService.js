@@ -103,6 +103,8 @@ export function createOutreachService({
       if (!a || String(a.company) !== String(companyId)) throw fail(400, 'That application does not belong to this company.');
       application = a._id;
     }
+    const recent = await Draft.findOne({ company: companyId, subject: body.subject.trim(), body: body.body, createdAt: { $gt: new Date(Date.now() - 30_000) } });
+    if (recent) return recent.toObject();
     if ((await Draft.countDocuments({ company: companyId })) >= MAX_DRAFTS_PER_COMPANY) throw fail(400, `This company has ${MAX_DRAFTS_PER_COMPANY} drafts already. Delete some first.`);
     const doc = await Draft.create({
       company: companyId, application, purpose: body.purpose, role: body.role || '', subject: body.subject.trim(), body: body.body,

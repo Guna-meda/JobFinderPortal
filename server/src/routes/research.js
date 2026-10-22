@@ -4,6 +4,7 @@ import { researchConfig } from '../config/research.js';
 
 const bad = (msg, status = 400, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
 const isId = (id) => mongoose.isValidObjectId(id);
+const ACTIONS = ['accept', 'reject', 'reset'];
 
 export function registerResearch(app, { wrap, service, config = researchConfig }) {
   app.get('/api/research/config', (req, res) => {
@@ -50,6 +51,7 @@ export function registerResearch(app, { wrap, service, config = researchConfig }
   app.post('/api/companies/:id/findings/:fid', wrap(async (req, res) => {
     if (!isId(req.params.id) || !isId(req.params.fid)) throw bad('Invalid id.');
     const { action, value, overwrite } = req.body || {};
+    if (!ACTIONS.includes(action)) throw bad('action must be accept, reject or reset.');
     try {
       const r = await service.decide(req.params.id, req.params.fid, { action, value, overwrite: overwrite === true });
       if (r.notFound) return res.status(404).json({ error: `${r.notFound === 'company' ? 'Company' : 'Finding'} not found.` });
@@ -63,6 +65,7 @@ export function registerResearch(app, { wrap, service, config = researchConfig }
   app.post('/api/companies/:id/findings', wrap(async (req, res) => {
     if (!isId(req.params.id)) throw bad('Invalid id.');
     const { action, ids } = req.body || {};
+    if (!ACTIONS.includes(action)) throw bad('action must be accept, reject or reset.');
     if (!Array.isArray(ids) || !ids.length || !ids.every((i) => typeof i === 'string' && isId(i))) throw bad('ids must be a list of finding ids.');
     const r = await service.decideMany(req.params.id, ids, { action });
     if (r.notFound) return res.status(404).json({ error: 'Company not found.' });

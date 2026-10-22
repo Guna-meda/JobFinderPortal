@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import { NO_LIMITS } from './helpers/limits.js';
 import Company from '../src/models/Company.js';
 import Application from '../src/models/Application.js';
 import { createResearchService } from '../src/lib/researchService.js';
@@ -37,7 +38,7 @@ before(async () => {
   base = `http://fixture.test:${fx.port}`;
   const config = { ...researchConfig, timeoutMs: 2000, minIntervalMs: 0 };
   service = createResearchService({ fetcher: testFetcher([fx.port]), config });
-  app = createApp({ research: service });
+  app = createApp({ research: service, limits: NO_LIMITS });
 });
 after(async () => {
   if (fx) await fx.close();
@@ -314,4 +315,39 @@ t('research config is exposed, statuses filter, and "not found" counts as resear
   assert.deepEqual((await get(c._id)).researchNotFound.sort(), ['careers', 'email']);
   assert.equal((await request(app).get('/api/stats')).body.researched, 1);
   assert.equal((await request(app).get('/api/companies?researchStatus=not_found')).body.total, 1);
+});
+
+t('research runs at most `concurrency` companies at once, however many are queued', async () => {
+  for (const concurrency of [1, 2]) {
+    let inflight = 0;
+    let peak = 0;
+    const slow = await startFixture((req, res) => {
+      inflight++;
+      peak = Math.max(peak, inflight);
+      setTimeout(() => {
+        inflight--;
+        site(baseRoutes())(req, res);
+      }, 120);
+    });
+    try {
+      const svc = createResearchService({
+        fetcher: testFetcher([slow.port]),
+        config: { ...researchConfig, concurrency, timeoutMs: 3000, minIntervalMs: 0 },
+      });
+      const capped = createApp({ research: svc, limits: NO_LIMITS });
+      const ids = [];
+      for (let i = 0; i < 5; i++) {
+        ids.push((await request(capped).post('/api/companies').send({ name: `Queued ${i}`, website: `http://q${i}.test:${slow.port}` })).body._id);
+      }
+      const r = await request(capped).post('/api/research/batch').send({ ids });
+      assert.equal(r.status, 202);
+      assert.equal(r.body.started.length, 5);
+      await svc.onIdle();
+      assert.ok(peak >= 1);
+      assert.ok(peak <= concurrency, `concurrency ${concurrency} but ${peak} requests were in flight at once`);
+      for (const id of ids) assert.equal((await request(capped).get(`/api/companies/${id}`)).body.researchStatus, 'researched');
+    } finally {
+      await slow.close();
+    }
+  }
 });

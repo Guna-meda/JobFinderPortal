@@ -6,6 +6,8 @@ import { buildCsv } from '../lib/exportCsv.js';
 
 const CAPS = { duplicates: 1000, warnings: 1000, skipped: 1000, failed: 5000 };
 const BATCH = 1000;
+const MAX_ROWS = 20000;
+let applying = false; // an import is currently writing
 
 const bad = (msg) => new ImportError(msg);
 
@@ -79,43 +81,63 @@ export function registerImportExport(app, { upload, wrap, apps }) {
     if (!['skip', 'update'].includes(policy)) throw bad('policy must be "skip" or "update".');
     const decisions = jsonField(req, 'decisions', {});
     if (typeof decisions !== 'object' || Array.isArray(decisions)) throw bad('decisions must be an object.');
+    if (Object.keys(decisions).length > MAX_ROWS) throw bad('Too many per-row decisions.');
     const dryRun = req.body.dryRun === 'true';
 
-    const existing = await Company.find({}).lean();
-    const plan = planImport({
-      existing,
-      records,
-      mapping,
-      headers,
-      policy,
-      decisions,
-      validate: (doc) => new Company(doc).validateSync()?.message,
-    });
-
+    // Only one import may write at a time. A double-click or a second tab would otherwise plan against the same
+    // snapshot and could create duplicates. Dry runs only read, so they are not blocked.
     if (!dryRun) {
-      try {
-        const touched = [];
-        for (let i = 0; i < plan.toInsert.length; i += BATCH) {
-          const docs = await Company.insertMany(plan.toInsert.slice(i, i + BATCH), { ordered: false });
-          touched.push(...docs.map((d) => d._id));
-        }
-        for (let i = 0; i < plan.toUpdate.length; i += BATCH) {
-          await Company.bulkWrite(
-            plan.toUpdate.slice(i, i + BATCH).map((u) => ({ updateOne: { filter: { _id: u.id }, update: { $set: u.set } } }))
+      if (applying) {
+        return res.status(409).json({ error: 'Another import is already running. Wait for it to finish, then try again.', code: 'import_in_progress' });
+      }
+      applying = true;
+    }
+    try {
+      const existing = await Company.find({}).lean();
+      const plan = planImport({
+        existing,
+        records,
+        mapping,
+        headers,
+        policy,
+        decisions,
+        validate: (doc) => new Company(doc).validateSync()?.message,
+      });
+
+      if (!dryRun) {
+        let inserted = 0;
+        try {
+          const touched = [];
+          for (let i = 0; i < plan.toInsert.length; i += BATCH) {
+            try {
+              const docs = await Company.insertMany(plan.toInsert.slice(i, i + BATCH), { ordered: false });
+              inserted += docs.length;
+              touched.push(...docs.map((d) => d._id));
+            } catch (e) {
+              inserted += e.insertedDocs?.length || 0;
+              throw e;
+            }
+          }
+          for (let i = 0; i < plan.toUpdate.length; i += BATCH) {
+            await Company.bulkWrite(
+              plan.toUpdate.slice(i, i + BATCH).map((u) => ({ updateOne: { filter: { _id: u.id }, update: { $set: u.set } } }))
+            );
+          }
+          // Imported status/date columns become an application record (never overwriting existing applications).
+          touched.push(...plan.toUpdate.map((u) => u.id));
+          if (apps) await apps.syncLegacy(touched);
+        } catch (e) {
+          console.error('Import failed partway:', e.name);
+          throw Object.assign(
+            new Error(`The import stopped partway because of a database error (${inserted} new compan${inserted === 1 ? 'y was' : 'ies were'} already saved). Re-running the same file is safe: rows already imported are detected as duplicates and skipped.`),
+            { status: 500, expose: true, code: 'partial_import' }
           );
         }
-        // Imported status/date columns become an application record (never overwriting existing applications).
-        touched.push(...plan.toUpdate.map((u) => u.id));
-        if (apps) await apps.syncLegacy(touched);
-      } catch (e) {
-        console.error(e);
-        throw Object.assign(
-          new Error('The import stopped partway because of a database error. Re-running the same file is safe: rows already imported are detected as duplicates.'),
-          { status: 500 }
-        );
       }
+      res.json(publicPlan(plan, { dryRun, headers }));
+    } finally {
+      if (!dryRun) applying = false;
     }
-    res.json(publicPlan(plan, { dryRun, headers }));
   }));
 
   app.get('/api/export', wrap(async (req, res) => {

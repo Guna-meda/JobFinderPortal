@@ -29,6 +29,7 @@ Everything else below is **not fixed**, pending your decision.
 - **P1-5 (import dedupe): mostly fixed.** Matching is now by normalised domain/name with explicit reasons, per-row decisions and no N+1 lookups. Still open: no unique index on `domain`, no transactions.
 - **P1-7 (tests): improved.** Route-level API tests now exist for import/export (49 tests total). Research routes and React components are still untested.
 - **Research rework (P0-1, P0-3, P1-3, P1-6): fixed.** Research no longer writes to a company; findings are accepted explicitly and never replace existing values without confirmation; hand-edits clear stale provenance; SSRF is closed with per-connection DNS validation, manual re-validated redirects, port/scheme/credential rules and IPv6-embedded-IPv4 handling; robots.txt uses a real parser; "nothing detected" has its own status. See README "Website research".
+- **Security hardening pass:** P1-1 (open CORS) fixed together with LAN exposure, DNS rebinding, rate limits, request limits, error leakage and more; see docs/SECURITY.md for what was fixed and the residual risks.
 - Still open and untouched: P0-1, P0-3, P1-1 to P1-4, P1-6, P1-8 and all P2 items other than the lint warnings count.
 
 ## P0: Must fix (trust and data integrity)

@@ -4,7 +4,7 @@ const one = (v) => (Array.isArray(v) ? v[0] : v);
 /** Build a Mongo filter from query-string params. All filters are ANDed. */
 export function buildFilter(q = {}) {
   const f = {};
-  const text = one(q.q) && String(one(q.q)).trim();
+  const text = one(q.q) && String(one(q.q)).trim().slice(0, 200);
   if (text) {
     const rx = new RegExp(esc(text), 'i');
     f.$or = [{ name: rx }, { domain: rx }, { industry: rx }, { location: rx }, { notes: rx }, { contactName: rx }];
@@ -32,4 +32,5 @@ const SORTS = {
   followUp: { followUpDate: 1, name: 1 },
   status: { appStatus: 1, name: 1 },
 };
-export const sortFor = (s) => SORTS[one(s)] || SORTS.name;
+// Own keys only: a query like ?sort=constructor must not reach Object.prototype.
+export const sortFor = (s) => (typeof one(s) === 'string' && Object.hasOwn(SORTS, one(s)) ? SORTS[one(s)] : SORTS.name);

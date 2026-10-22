@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import { NO_LIMITS } from './helpers/limits.js';
 import Company from '../src/models/Company.js';
 import Application from '../src/models/Application.js';
 import { createApplicationService } from '../src/lib/applicationService.js';
@@ -18,7 +19,7 @@ before(async () => {
     await mongoose.connect(URI, { serverSelectionTimeoutMS: 3000 });
     up = true;
     await Application.init();
-    app = createApp();
+    app = createApp({ limits: NO_LIMITS });
   } catch {
     console.warn(`SKIPPING application API tests: cannot reach MongoDB at ${URI}`);
   }
@@ -414,7 +415,7 @@ t('everything persists across a server restart (new connection, new app instance
   await mongoose.disconnect();
   await mongoose.connect(URI, { serverSelectionTimeoutMS: 3000 });
   await Application.init();
-  app = createApp();
+  app = createApp({ limits: NO_LIMITS });
 
   const after = (await listApps(c._id))[0];
   assert.deepEqual(after, before);

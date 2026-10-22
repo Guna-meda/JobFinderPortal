@@ -23,7 +23,7 @@ Run tests: `npm test` (the API tests use the separate database `startup-finder-t
 ### Configuring MongoDB (`MONGO_URI`)
 Set it in `server/.env`:
 - Local Docker (default): `MONGO_URI=mongodb://127.0.0.1:27017/startup-finder`
-- Atlas free tier (no Docker needed): create a cluster, add your IP under Network Access, and paste the `mongodb+srv://user:pass@cluster/startup-finder` string.
+- Atlas free tier (no Docker needed): create a cluster, add your IP under Network Access, and paste the connection string Atlas gives you (it starts with `mongodb+srv://`) into `MONGO_URI`, adding `/startup-finder` as the database name.
 - Native install: install MongoDB Community, start the service, keep the default URI.
 
 `.env` is git-ignored; never commit credentials.
@@ -93,6 +93,9 @@ Funding is never used, and your private notes are never quoted. Nothing about ex
 **Template vs AI.** Templates work with no setup. To enable AI drafts, put `ANTHROPIC_API_KEY=…` in `server/.env` and restart. The server calls Claude (`claude-opus-5-5` by default, override with `OUTREACH_AI_MODEL`) through the official `@anthropic-ai/sdk` with low effort and a JSON-only response. This sends the facts shown in the panel and your background to Anthropic, only when you press **Generate with AI**. The reply is then **validated**: any number, link, email address, funding claim, attachment mention or missing company name that isn't backed by the facts is rejected and the template is used instead (with the reason shown). If the key is missing/invalid, the service is down or busy, or the reply is malformed, you also get the template. AI drafts are limited to 10 per 10 minutes. The key stays in the server process: it is not in the frontend bundle, API responses or logs (errors are reduced to a short code before logging).
 
 Limitations: AI mode is covered by tests with a fake provider, **not by a live call** (no API key was available while building this). Server-side fallbacks for refusals are not enabled; a refusal simply yields the template. Draft text isn't checked for tone or grammar, and the number/link checks are heuristics, not a guarantee, so always read the draft before sending.
+
+## Security
+Built for one person on one computer, with no login. The API listens on `127.0.0.1` only, refuses other host names and other websites' browser requests, rate-limits expensive actions, validates every write, never returns internal error details, and keeps API keys on the server. MongoDB in `docker-compose.yml` is published on localhost only. **Do not expose it to a network without adding authentication.** Full list of protections, settings, how they are tested, and the residual risks: [docs/SECURITY.md](docs/SECURITY.md). Check data consistency any time with `npm --prefix server run check:integrity`.
 
 ## Website research
 Open a company and press **Run research** (or tick several rows and press **Research selected**, max 25). Research runs in the background; the row and drawer show progress, and you can retry any failure later. **Nothing is written to the company until you accept a finding.**

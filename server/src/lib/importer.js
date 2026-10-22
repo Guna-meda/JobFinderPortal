@@ -65,9 +65,8 @@ const ALIASES = {
   followUpDate: ['followupdate', 'followup', 'nextfollowup'],
   notes: ['notes', 'note', 'comments', 'description'],
 };
-const ALIAS_LOOKUP = Object.fromEntries(
-  Object.entries(ALIASES).flatMap(([field, list]) => list.map((a) => [a, field]))
-);
+// A Map, not a plain object: a column called "constructor" or "toString" must not resolve to Object.prototype.
+const ALIAS_LOOKUP = new Map(Object.entries(ALIASES).flatMap(([field, list]) => list.map((a) => [a, field])));
 
 const normHeader = (h) => String(h).toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -122,7 +121,7 @@ export function suggestMapping(headers, records = []) {
   const mapping = {};
   const taken = new Set();
   for (const h of headers) {
-    const field = ALIAS_LOOKUP[normHeader(h)];
+    const field = ALIAS_LOOKUP.get(normHeader(h));
     if (field && !taken.has(field)) {
       mapping[h] = field;
       taken.add(field);

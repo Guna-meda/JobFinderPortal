@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import { NO_LIMITS } from './helpers/limits.js';
 import Company from '../src/models/Company.js';
 import Application from '../src/models/Application.js';
 import Draft from '../src/models/Draft.js';
@@ -24,7 +25,7 @@ const fakeProvider = { model: 'fake-model', generate: async (p) => provider(p) }
 const build = (withProvider = true, limiter) => {
   apps = createApplicationService();
   const outreach = createOutreachService({ provider: withProvider ? fakeProvider : null, apps, aiLimiter: limiter || createRateLimiter({ max: 100, windowMs: 60_000 }) });
-  app = createApp({ applications: apps, outreach });
+  app = createApp({ applications: apps, outreach, limits: NO_LIMITS });
 };
 
 before(async () => {

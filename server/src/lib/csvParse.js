@@ -36,6 +36,8 @@ function dedupeHeaders(cells) {
   const seen = new Map();
   return cells.map((raw, i) => {
     let h = String(raw ?? '').trim() || `Column ${i + 1}`;
+    // Names like __proto__ would collide with object internals and lose their values.
+    if (['__proto__', 'constructor', 'prototype'].includes(h.toLowerCase())) h = `${h}_`;
     const n = (seen.get(h.toLowerCase()) || 0) + 1;
     seen.set(h.toLowerCase(), n);
     if (n > 1) h = `${h} (${n})`;
