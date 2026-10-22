@@ -278,6 +278,16 @@ t('the company follow-up is the earliest open one and changes as applications fi
   assert.equal((await getCompany(c._id)).followUpDate.slice(0, 10), ymd(9));
 });
 
+t('moving an overdue application forward works and keeps its (still overdue) reminder', async () => {
+  const c = await company();
+  const a = (await addApp(c._id, { role: 'Backend Intern', status: 'To Apply', followUpDate: ymd(-3) })).body;
+  const r = await patchApp(a._id, { status: 'Interview' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.appliedDate.slice(0, 10), ymd());
+  assert.equal(r.body.followUpDate.slice(0, 10), ymd(-3));
+  assert.equal((await addApp(c._id, { role: 'SRE Intern', status: 'Applied', followUpDate: ymd(-2) })).status, 201);
+});
+
 t('a follow-up before the applied date is refused', async () => {
   const c = await company();
   assert.equal((await addApp(c._id, { role: 'A', status: 'Applied', appliedDate: ymd(-2), followUpDate: ymd(-5) })).status, 400);

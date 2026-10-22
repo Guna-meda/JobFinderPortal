@@ -1,0 +1,5 @@
+# Store text as LF in the repository; Windows checkouts convert as needed. (Silences the CRLF warnings.)
+* text=auto
+*.png binary
+*.jpg binary
+*.ico binary

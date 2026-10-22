@@ -57,7 +57,7 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end bg-ink/30" onClick={onClose}>
-      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="flex h-full w-full max-w-xl flex-col bg-white shadow-xl">
+      <div role="dialog" aria-modal="true" aria-label={`${c.name} details`} onClick={(e) => e.stopPropagation()} className="flex h-full w-full max-w-xl flex-col bg-white shadow-xl">
         <div className="flex items-start justify-between border-b border-stone-200 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold">{c.name}</h2>
@@ -71,6 +71,7 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
 
           <OutreachPanel company={c} onApplicationChanged={async () => { setAppsTick((n) => n + 1); onCompany(await api.company(c._id)) }} />
 
+          <form id="company-form" onSubmit={save} className="space-y-5">
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Company contact and notes</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -119,16 +120,17 @@ export default function EditDrawer({ company: c, onClose, onSave, onCompany, onD
             <Field label="Source URL" hint="Paste the article or filing that supports this. A company's own statement is not independent proof."><input className={input} value={f.fundingSourceUrl} onChange={set('fundingSourceUrl')} /></Field>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.fundingVerified} onChange={set('fundingVerified')} /> I verified this against the source</label>
           </section>
+          </form>
 
           <ResearchPanel company={c} onCompany={serverChanged} />
         </div>
 
         <div className="flex items-center gap-3 border-t border-stone-200 px-5 py-3">
-          <button disabled={saving} className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+          <button type="submit" form="company-form" disabled={saving} className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
           <button type="button" onClick={() => window.confirm(`Delete ${c.name}${c.applicationCount ? ` and its ${c.applicationCount} application${c.applicationCount === 1 ? '' : 's'}` : ''}? This cannot be undone.`) && onDelete()} className="text-sm text-rose-700 hover:underline">Delete</button>
           <span role="status" className={`ml-auto text-sm ${msg.type === 'err' ? 'text-rose-700' : 'text-emerald-700'}`}>{msg.text}</span>
         </div>
-      </form>
+      </div>
     </div>
   )
 }

@@ -16,7 +16,9 @@ try {
   console.log(`MongoDB connected: ${maskUri(uri)}`);
 } catch (e) {
   console.error(`\nCould not connect to MongoDB at ${maskUri(uri)}\n${maskUri(e.message)}`);
-  console.error('Start MongoDB (see README: "docker compose up -d") or set MONGO_URI in server/.env\n');
+  console.error('Fix: start MongoDB. On Windows open Docker Desktop, wait until it says "running", then run:');
+  console.error('       docker start jobs-mongo        (or, first time:  docker compose up -d)');
+  console.error('     Using Atlas or another server instead? Set MONGO_URI in server/.env.\n');
   process.exit(1);
 }
 

@@ -22,8 +22,25 @@ const stubs = {
   applications: { removeForCompany: async () => {} },
   outreach: { config: () => { if (outreachBoom) throw outreachBoom; return { aiAvailable: false, model: null, purposes: [] }; }, removeForCompany: async () => {} },
 };
-const build = (extra = {}) => createApp({ ...stubs, limits: NO_LIMITS, ...extra });
+const build = (extra = {}) => createApp({ ...stubs, limits: NO_LIMITS, requireDb: false, ...extra });
 const quiet = async (fn) => { const o = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = o; } };
+
+// ---------- database availability ----------
+
+test('when MongoDB is not connected the API answers 503 straight away; health still reports it', async () => {
+  const app = build({ requireDb: true });
+  const started = Date.now();
+  for (const [method, url] of [['get', '/api/companies'], ['get', '/api/stats'], ['post', '/api/companies'], ['post', '/api/import'], ['get', '/api/outreach/config']]) {
+    const r = await request(app)[method](url);
+    assert.equal(r.status, 503, url);
+    assert.equal(r.body.code, 'db_unavailable');
+    assert.match(r.body.error, /database is not reachable/);
+  }
+  assert.ok(Date.now() - started < 2000, 'must not wait for a database timeout');
+  const health = await request(app).get('/api/health');
+  assert.deepEqual([health.status, health.body.ok, health.body.db], [200, true, false]);
+  assert.equal((await request(app).get('/api/nope')).status, 503); // checked before routing, nothing leaks about routes
+});
 
 // ---------- who may talk to the API ----------
 

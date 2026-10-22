@@ -1,0 +1,9 @@
+Company,URL,Industry,Funding,Job Title,Status,Notes
+"Acme, Inc.",acme.example.com,AI,Seed,Backend Intern,To Apply,"Fictional. Quoted comma, and a note"
+ACME Inc,www.acme.example.com,AI,,,,Same website as the row above (a duplicate inside this file)
+,missing-name.example.com,,,,,This row has no company name and cannot be imported
+Zürich Robotik 東京,zr.example.com,Robotics,Yet to raise,AI Intern,Applied,Unicode name. The funding text is kept as extra data and never guessed
+Bad Site Co,not a website,SaaS,,,,The website is invalid so it is kept as extra data
+Northwind Robotics,northwind.example.com,Robotics,,,,Matches a company from sample_startups.csv (a duplicate of an existing record)
+Nova Labs,nova.example.com,Developer tools,Series B,Platform Engineer,Interview,Fictional
+Nova Labs,nova.example.org,Developer tools,,,,Same name as the row above but a different website (a possible duplicate)

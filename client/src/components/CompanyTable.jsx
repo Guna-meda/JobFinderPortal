@@ -54,7 +54,7 @@ export default function CompanyTable({ items, onOpen, onStatus, picked = new Set
                   {!c.fundingVerified && (c.fundingStatus !== 'unknown' || c.fundingStage !== 'unknown') && <span title="Unverified: from your sheet, no source URL checked" className="ml-1 text-xs text-stone-400">(unverified)</span>}
                 </td>
                 <td className="space-x-2 px-3 py-2 text-xs">
-                  {c.careersUrl ? <a href={c.careersUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">Careers<Verified ok={c.careersVerified} label="Careers" /></a> : <span className="text-stone-400">no careers</span>}
+                  {c.careersUrl ? <a href={c.careersUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Careers<Verified ok={c.careersVerified} label="Careers" /></a> : <span className="text-stone-400">no careers</span>}
                   {c.contactEmail ? <a href={`mailto:${c.contactEmail}`} className="text-accent hover:underline">{c.contactEmail}</a> : <span className="text-stone-400">no email</span>}
                   {c.hasRelevantRoles === 'yes' && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800">eng roles</span>}
                 </td>

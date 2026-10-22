@@ -30,6 +30,7 @@ Everything else below is **not fixed**, pending your decision.
 - **P1-7 (tests): improved.** Route-level API tests now exist for import/export (49 tests total). Research routes and React components are still untested.
 - **Research rework (P0-1, P0-3, P1-3, P1-6): fixed.** Research no longer writes to a company; findings are accepted explicitly and never replace existing values without confirmation; hand-edits clear stale provenance; SSRF is closed with per-connection DNS validation, manual re-validated redirects, port/scheme/credential rules and IPv6-embedded-IPv4 handling; robots.txt uses a real parser; "nothing detected" has its own status. See README "Website research".
 - **Security hardening pass:** P1-1 (open CORS) fixed together with LAN exposure, DNS rebinding, rate limits, request limits, error leakage and more; see docs/SECURITY.md for what was fixed and the residual risks.
+- **Demo preparation:** P1-2 (only 200 companies shown) is mitigated: the list now loads up to 1,000 and says when more exist (real pagination is still not built). P1-8 (Docker): compose now binds MongoDB to localhost; `docker start jobs-mongo` is documented for the existing container. The real-browser check also found and fixed a nested-form bug and an application date rule that blocked moving an overdue application forward.
 - Still open and untouched: P0-1, P0-3, P1-1 to P1-4, P1-6, P1-8 and all P2 items other than the lint warnings count.
 
 ## P0: Must fix (trust and data integrity)

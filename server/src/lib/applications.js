@@ -146,9 +146,11 @@ export function planUpdate(current, patch, now = new Date()) {
   if ('role' in set) set.roleKey = roleKey(set.role);
   if ('jobUrl' in set) set.jobUrlKey = set.jobUrl ? jobUrlKey(set.jobUrl) : '';
 
+  // Only dates the user typed are checked. An applied date the app filled in (status moved to Applied) must not
+  // turn an older, still-outstanding reminder into an error.
   const appliedDate = 'appliedDate' in set ? set.appliedDate : current.appliedDate;
   const followUpDate = 'followUpDate' in set ? set.followUpDate : current.followUpDate;
-  if (appliedDate && followUpDate && startOfDay(followUpDate) < startOfDay(appliedDate)) {
+  if (('appliedDate' in patch || 'followUpDate' in patch) && appliedDate && followUpDate && startOfDay(followUpDate) < startOfDay(appliedDate)) {
     throw bad("The follow-up date can't be before the applied date.");
   }
   return { set, history };
@@ -201,7 +203,7 @@ export function planCreate(patch, { now = new Date(), autofill = true } = {}) {
     if (SENT_OR_LATER.includes(data.status) && !('appliedDate' in patch)) data.appliedDate = today;
     if (CONTACT_STATUSES.includes(data.status) && !('lastContactDate' in patch)) data.lastContactDate = today;
   }
-  if (data.appliedDate && data.followUpDate && startOfDay(data.followUpDate) < startOfDay(data.appliedDate)) {
+  if ('appliedDate' in patch && 'followUpDate' in patch && data.appliedDate && data.followUpDate && startOfDay(data.followUpDate) < startOfDay(data.appliedDate)) {
     throw bad("The follow-up date can't be before the applied date.");
   }
   data.roleKey = roleKey(data.role);

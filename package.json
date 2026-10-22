@@ -5,7 +5,8 @@
     "setup": "npm install && npm --prefix server install && npm --prefix client install",
     "dev": "concurrently -n api,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "test": "npm --prefix server test",
-    "build": "npm --prefix client run build"
+    "build": "npm --prefix client run build",
+    "ui-check": "node scripts/ui-check.mjs"
   },
   "devDependencies": { "concurrently": "^9.0.0" }
 }

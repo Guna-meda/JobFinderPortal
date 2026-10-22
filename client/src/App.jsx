@@ -175,6 +175,12 @@ export default function App() {
           </span>
         </div>
 
+        {!loading && data.total > data.items.length && (
+          <div role="status" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            Showing the first {data.items.length} of {data.total} companies. Narrow the search or filters to see the rest.
+          </div>
+        )}
+
         {loading ? (
           <div className="rounded-lg border border-stone-200 bg-white p-10 text-center text-sm text-stone-500">Loading…</div>
         ) : data.items.length === 0 ? (

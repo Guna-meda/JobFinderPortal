@@ -1,5 +1,13 @@
-Company Name,Website,Location,Industry,Funding Stage,Notes,Founder
-Acme AI,acme.io,India,AI,Seed,test,Bob
-Beta Sec,https://www.beta.org,Remote,Cybersecurity,Series A,,Sue
-Acme AI,acme.io,India,AI,,dup,
-,x.com,,,,,
+Company Name,Website,Location,Industry,Funding Stage,Notes
+Linear,https://linear.app,,Project management software,,Real company. Only the website and a generic category are filled in.
+Vercel,https://vercel.com,,Developer platform,,Real company. Only the website and a generic category are filled in.
+Supabase,https://supabase.com,,Database platform,,Real company. Only the website and a generic category are filled in.
+PostHog,https://posthog.com,,Product analytics,,Real company. Only the website and a generic category are filled in.
+Resend,https://resend.com,,Email API,,Real company. Only the website and a generic category are filled in.
+Cal.com,https://cal.com,,Scheduling software,,Real company. Only the website and a generic category are filled in.
+Clerk,https://clerk.com,,Authentication,,Real company. Only the website and a generic category are filled in.
+Mintlify,https://mintlify.com,,Documentation tooling,,Real company. Only the website and a generic category are filled in.
+Northwind Robotics,https://northwind.example.com,India,Robotics,Seed,Fictional demo company (not real).
+Lumen Health AI,https://lumen.example.org,Remote,Health AI,Series A,Fictional demo company (not real).
+Quanta Ledger,https://quanta.example.net,United States,Fintech,Pre-seed,Fictional demo company (not real).
+Fjord Systems,https://fjord.example.com,Europe,Infrastructure,Seed,Fictional demo company (not real).

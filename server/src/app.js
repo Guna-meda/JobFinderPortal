@@ -90,6 +90,7 @@ export function createApp({
   outreach = createOutreachService({ apps }),
   security = securityFromEnv(),
   limits = {},
+  requireDb = true,
 } = {}) {
   const app = express();
   app.disable('x-powered-by');
@@ -105,9 +106,16 @@ export function createApp({
   app.post('/api/research/batch', limit.batch);
   app.post(['/api/import', '/api/import/preview'], limit.import);
   app.post('/api/outreach/generate', limit.outreach);
+  // If MongoDB is not connected, say so immediately instead of letting requests hang until they time out.
+  if (requireDb) {
+    app.use('/api', (req, res, next) => {
+      if (req.path === '/health' || mongoose.connection.readyState === 1) return next();
+      return res.status(503).json({ error: 'The database is not reachable. Start MongoDB (docker start jobs-mongo) and try again.', code: 'db_unavailable' });
+    });
+  }
   app.use(express.json({ limit: '1mb' }));
 
-  app.get('/api/health', (req, res) => res.json({ ok: true, db: mongoose.connection.readyState === 1 }));
+  app.get('/api/health', (req, res) => res.json({ ok: true, db: mongoose.connection.readyState === 1, database: mongoose.connection.name || null }));
 
   app.get('/api/companies', wrap(async (req, res) => {
     const filter = buildFilter(req.query);

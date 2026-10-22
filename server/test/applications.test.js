@@ -130,6 +130,19 @@ test('a follow-up before the applied date is rejected', () => {
   assert.doesNotThrow(() => planUpdate(base({ appliedDate: d('2026-10-10') }), { followUpDate: d('2026-10-10') }, NOW));
 });
 
+test('an applied date the app fills in never turns an older follow-up into an error; typed dates are still checked', () => {
+  // Moving an overdue "To Apply" application forward fills today as the applied date. The old reminder stays (still overdue).
+  const overdue = base({ status: 'To Apply', followUpDate: d('2026-10-01') });
+  const moved = planUpdate(overdue, { status: 'Interview' }, NOW);
+  assert.equal(moved.set.appliedDate.toISOString().slice(0, 10), '2026-10-22');
+  assert.ok(!('followUpDate' in moved.set));
+  // Creating an Applied application with a past follow-up and no applied date works the same way.
+  assert.doesNotThrow(() => planCreate({ status: 'Applied', followUpDate: d('2026-10-01') }, { now: NOW }));
+  // But two dates the user typed that contradict each other are still refused.
+  rejectsWith(() => planCreate({ status: 'Applied', appliedDate: d('2026-10-10'), followUpDate: d('2026-10-01') }, { now: NOW }), /before the applied date/);
+  rejectsWith(() => planUpdate(base({ appliedDate: d('2026-10-10') }), { followUpDate: d('2026-10-01') }, NOW), /before the applied date/);
+});
+
 test('new applications default to To Apply and only user-created ones autofill dates', () => {
   assert.equal(planCreate({}, { now: NOW }).status, 'To Apply');
   const user = planCreate({ status: 'Interview' }, { now: NOW });

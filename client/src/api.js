@@ -23,7 +23,7 @@ const qs = (params) => {
 };
 
 export const api = {
-  list: (filters) => req(`/companies?${qs(filters)}`),
+  list: (filters) => req(`/companies?${qs({ limit: 1000, ...filters })}`),
   facets: () => req('/facets'),
   stats: () => req('/stats'),
   update: (id, patch) => req(`/companies/${id}`, json('PATCH', patch)),

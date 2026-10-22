@@ -1,46 +1,86 @@
 # Startup Finder
 
-A startup discovery and job-application tracker. Import your Google Sheet as CSV, filter companies, research their public careers pages and contact emails, and track each application.
+A startup discovery and job-application tracker. Import your startup list from a CSV, filter and research companies, track one application per role with follow-ups and activity history, and draft outreach emails (which you send yourself).
 
 **Stack:** React + Vite + Tailwind CSS · Node.js + Express · MongoDB (Mongoose) · JavaScript only.
+**Built for one person on one computer, with no login.** Read [Security](#security) before exposing it anywhere.
 
-## Quick start (Windows PowerShell)
+Doing a demo? Follow **[DEMO_CHECKLIST.md](DEMO_CHECKLIST.md)** (click-by-click, 3-minute script, sample data included).
 
-Prerequisites: Node 20+, and MongoDB (Docker is easiest).
+## Prerequisites
+
+| Need | Notes |
+|---|---|
+| Windows + PowerShell | Commands below are PowerShell. |
+| Node.js 20 or newer | Developed and tested on Node 22. Check: `node -v`. |
+| MongoDB | Easiest: **Docker Desktop** (the app uses the `jobs-mongo` container). Or a free MongoDB Atlas cluster (see below). |
+| Internet | Only for website research, the web font, and optional AI drafts. Everything else works offline. |
+
+## Install and run (Windows PowerShell)
 
 ```powershell
 cd D:\Projects\Jobs-Portal
-npm run setup                      # installs root, server and client deps
-docker compose up -d               # starts MongoDB on localhost:27017
-Copy-Item server\.env.example server\.env
-npm run dev                        # API on :4000, web on http://localhost:5173
+npm run setup                                   # installs root, server and client dependencies (about 10 s)
+if (-not (Test-Path server\.env)) { Copy-Item server\.env.example server\.env }   # never overwrites your .env
+
+# Start MongoDB. Open Docker Desktop first and wait until it says it is running, then EITHER:
+docker start jobs-mongo                         # if the container already exists (the usual case)
+# OR, the very first time only:
+docker compose up -d
+
+npm run dev                                     # API on http://127.0.0.1:4000, web UI on http://localhost:5173
 ```
 
-Open http://localhost:5173, click **Import CSV**, and pick your sheet export (try `sample_startups.csv`).
+Open **http://localhost:5173**. Stop with `Ctrl+C`. Check it is healthy: http://localhost:4000/api/health should show `{"ok":true,"db":true,...}`.
 
-Run tests: `npm test` (the API tests use the separate database `startup-finder-test` on your local MongoDB, via `MONGO_TEST_URI` if you want another one, and are skipped with a warning if MongoDB is unreachable). Production build of the UI: `npm run build`.
+Other commands:
 
-### Configuring MongoDB (`MONGO_URI`)
-Set it in `server/.env`:
-- Local Docker (default): `MONGO_URI=mongodb://127.0.0.1:27017/startup-finder`
-- Atlas free tier (no Docker needed): create a cluster, add your IP under Network Access, and paste the connection string Atlas gives you (it starts with `mongodb+srv://`) into `MONGO_URI`, adding `/startup-finder` as the database name.
-- Native install: install MongoDB Community, start the service, keep the default URI.
+```powershell
+npm test                                        # all server tests (210). Needs MongoDB running; uses separate test databases
+npm run build                                   # production build of the UI (client/dist)
+npm --prefix client run lint                    # lint (0 errors; a few React warnings, see Known limitations)
+npm --prefix server run check:integrity         # check companies/applications/drafts agree (add -- --repair to fix summaries)
+npm --prefix server run migrate:applications    # optional; the server already does this on every start
+```
 
-`.env` is git-ignored; never commit credentials.
+## Configuration (`server/.env`)
+
+Copy `server/.env.example` to `server/.env`. Everything is optional except that MongoDB must be reachable. `.env` is git-ignored: never commit it.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `MONGO_URI` | `mongodb://127.0.0.1:27017/startup-finder` | Which MongoDB and database to use. |
+| `PORT` | `4000` | API port. |
+| `HOST` | `127.0.0.1` | API listens on this machine only. Do **not** set `0.0.0.0` (there is no login). |
+| `ALLOWED_HOSTS` / `CORS_ORIGINS` | localhost, 127.0.0.1 / `http://localhost:5173` | Which host names and web pages may use the API. Change only if you also change the UI port. |
+| `ANTHROPIC_API_KEY` | empty | Enables AI-written outreach drafts. Empty = template drafts only (all else unaffected). Server-side only. |
+| `OUTREACH_AI` / `OUTREACH_AI_MODEL` | on if a key is set / `claude-opus-5-5` | `OUTREACH_AI=off` forces templates; the model can be overridden. |
+| `RESEARCH_ROLE_KEYWORDS` | built-in list | Comma-separated keywords that mark a careers-page link as a role lead. |
+| `MONGO_TEST_URI` | `startup-finder-test*` databases | Test databases (the name must contain "test"). |
+
+### MongoDB options
+- **Docker (default).** `docker start jobs-mongo`. Data lives in the Docker volume `jobs-mongo-data`, so it survives restarts. The container is published on `127.0.0.1` only. Check with `docker port jobs-mongo` (it must say `127.0.0.1:27017`).
+- **Atlas free tier (no Docker).** Create a cluster, add your IP under Network Access, and paste the connection string Atlas gives you (it starts with `mongodb+srv://`) into `MONGO_URI`, adding `/startup-finder` as the database name.
+- **Native install.** Install MongoDB Community, start the service, keep the default URI.
+
+If MongoDB is not running, the server **refuses to start** and prints exactly what to do. If it stops while the app is running, the API answers `503` immediately ("The database is not reachable") and recovers by itself a few seconds after MongoDB is back.
+
+### Getting your spreadsheet in
+In Google Sheets choose **File → Download → Comma-separated values (.csv)**, then **Import CSV** in the app. The wizard maps your columns (a company-name column is required) and shows a preview before anything is saved. A Google Sheet that is private can't be read by the app or by anyone else without you exporting it. Two sample files are included: `sample_startups.csv` (12 rows: 8 real companies with only a website and generic category, 4 fictional ones) and `sample_startups_messy.csv` (duplicates, a bad row, Unicode, free-text funding) to show how import handles real-world mess.
 
 ## Features
 | Area | Status |
 |---|---|
 | CSV import wizard: column mapping, dry-run review, duplicate policy, error CSV, protected application data | Done (see "CSV import") |
-| Dashboard: total, researched, applications sent, replies, interviews | Done |
-| Search + filters: funding, stage, location, industry, engineering roles, status, research | Done |
+| Dashboard: total, researched, applications sent, replies, interviews, overdue follow-ups | Done |
+| Search + filters: funding, stage, location, industry, engineering roles, research, quick status chips | Done |
 | Application tracking: one application per role, statuses, dates, follow-up due/overdue, contacts, notes, activity history, duplicate protection | Done (see "Application tracking") |
-| Edit/delete companies, CSV export (respects current filters) | Done |
+| Edit/delete companies, CSV export (respects current filters), applications CSV | Done |
 | Website research: evidence-backed findings (careers page, public email, role leads, funding statements) with per-finding sources; accept/edit/reject; single and batch; SSRF-hardened | Done, best-effort (see "Website research") |
 | Outreach drafts: template + optional AI, facts labelled by origin, validated output, manual "I sent this" | Done (see "Outreach drafts"); AI mode tested with a fake provider only |
 | Funding verification | Research can surface the company's own funding statement as an unverified lead; **independent verification is manual** (source URL + "verified" tick) |
 | Role discovery on JS-rendered or hiring-platform-only career pages | Not done; shows "not detected" |
-| Browser-tested UI | Compiled and served by Vite; not exercised in a real browser during the build |
+| Real-browser UI check | `npm run ui-check` drives headless Edge/Chrome through import, filters, duplicates, applications, outreach, research, export, reload, mobile layout and error/loading states: 45 checks, all passing at the time of writing |
 
 ## Honesty rules
 - Research only proposes values it actually saw on a fetched page, each with its own source URL and observation time. Nothing is guessed or invented, and nothing is applied until you accept it.
@@ -163,3 +203,45 @@ An invalid website/email/URL, unrecognised status, free-text funding such as "Ye
 - The wizard UI has not been exercised in a real browser in this environment (the browser extension was unavailable); the API, the planner and the error-CSV builder are covered by automated tests and the frontend production build passes.
 
 See `docs/` for architecture, data model, build plan and Claude Code prompts.
+
+## Testing
+| Command | What it checks |
+|---|---|
+| `npm test` | 210 server tests: import/export, research (SSRF, robots.txt, parsing), application tracking, outreach, security, data consistency. Database tests use separate `startup-finder-test*` databases and print `SKIPPING` (not a pass) if MongoDB is unreachable. |
+| `npm run build` | Production build of the React UI. |
+| `npm --prefix client run lint` | ESLint-style checks (oxlint). |
+| `npm run ui-check` | The real UI in headless Edge/Chrome. **It writes data, so use a throwaway database** and it refuses to run against anything not named like one: start the app with `$env:MONGO_URI='mongodb://127.0.0.1:27017/ui-check'; npm run dev`, then in a second PowerShell window `npm run ui-check`. Needs internet. Screenshots go to a temp folder (set `UI_OUT`). Stop that dev server and drop the `ui-check` database afterwards. |
+
+More detail: [docs/TEST_PLAN.md](docs/TEST_PLAN.md). Dependency check: `npm audit` reports 0 known vulnerabilities in the root, `server` and `client` (a point-in-time result).
+
+## Known limitations
+- **No login.** Single-user, local only. See [docs/SECURITY.md](docs/SECURITY.md) for protections and residual risks.
+- **Research is best-effort.** It reads only pages the homepage links to, does not run JavaScript, skips hiring-platform boards (Lever, Greenhouse, …), and can be blocked (403/429) by sites. "Not detected" never means "doesn't exist".
+- **Funding is never confirmed automatically.** A company's own statement is a lead; verify it yourself.
+- **AI drafts are untested against the live service** (no key was available while building); the template path is fully tested. Always read a draft before sending it yourself.
+- **The company list shows up to 1,000 rows** and tells you when more exist (narrow with search/filters).
+- **A re-imported export** recreates one general application per company from the summary columns; per-role detail lives in the applications CSV, which can't be re-imported yet. Source URLs lose a trailing slash on import (same address).
+- **Import has no progress bar** and no database transaction. A failure mid-way reports how many rows were saved, and re-running the same file is safe.
+- **Lint reports a few React warnings** (state set inside effects, a fast-refresh note). No errors; behaviour is unaffected.
+- **Mongoose prints deprecation warnings** in the server log (`validateSync`, `findOneAndUpdate new`). Harmless today; to be updated before Mongoose 10.
+- **Dates** in imports must be `YYYY-MM-DD`; `03/04/2026` is ambiguous and is kept as text instead of guessed.
+
+## Troubleshooting
+| Symptom | Fix |
+|---|---|
+| Server exits with "Could not connect to MongoDB" | Open Docker Desktop, wait until it is running, then `docker start jobs-mongo`. Using Atlas? Check `MONGO_URI`. |
+| `docker compose up -d` says the container name `jobs-mongo` is already in use | The container exists: use `docker start jobs-mongo` instead. |
+| `docker start` or compose says port 27017 is not available | Something else (an old Mongo, a leftover container) is using it. Stop that, or `docker ps` to see what is running. |
+| Page shows "Cannot reach the API" | The API isn't running: run `npm run dev` and check http://localhost:4000/api/health. |
+| API answers `503 db_unavailable` | MongoDB stopped. `docker start jobs-mongo`; the API reconnects by itself. |
+| `403 This host name is not allowed` / `Cross-site requests are not allowed` | You opened the app or API through a name other than `localhost` / `127.0.0.1`, or a different UI port. Use http://localhost:5173, or set `ALLOWED_HOSTS` / `CORS_ORIGINS` in `server/.env`. |
+| `429 Too many requests` | A rate limit (research, import, drafting). Wait the number of seconds in `Retry-After`. |
+| Port 4000 or 5173 already in use | Another copy is running. Close it (or find it with `Get-NetTCPConnection -LocalPort 4000 -State Listen`). Two copies of `npm run dev` fight over the ports and one may use the wrong database. |
+| Import says "Only .csv files are supported" / "not valid UTF-8" | Export from Sheets as CSV (not .xlsx); in Excel choose "CSV UTF-8". |
+| Import says "No company name column" | In the mapping step choose which column is the company name. |
+| Research says "domain could not be found", "refused access" or "robots.txt disallows" | That is the site's answer; it is never bypassed. Fix the website URL, or retry later for temporary errors. |
+| PowerShell blocks `npm` ("running scripts is disabled") | Run `npm.cmd run dev`, or `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. |
+| A test prints `SKIPPING ... cannot reach MongoDB` | MongoDB isn't running; those tests did not run. Start it and re-run `npm test`. |
+
+## Documentation
+[DEMO_CHECKLIST.md](DEMO_CHECKLIST.md) · [docs/SECURITY.md](docs/SECURITY.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/DATA_MODEL.md](docs/DATA_MODEL.md) · [docs/TEST_PLAN.md](docs/TEST_PLAN.md) · [docs/IMPLEMENTATION_AUDIT.md](docs/IMPLEMENTATION_AUDIT.md) · [docs/ROADMAP.md](docs/ROADMAP.md)
